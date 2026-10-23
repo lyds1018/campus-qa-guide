@@ -74,6 +74,7 @@ class QAService:
         history: list[tuple[str, str]] | None = None,
         doc_types: list[str] | None = None,
         trace_id: str | None = None,
+        understanding: Understanding | None = None,
     ) -> Answer:
         started = time.monotonic()
         trace_id = trace_id or str(uuid.uuid4())
@@ -92,7 +93,10 @@ class QAService:
                 started,
             )
 
-        u = await understand.understand(text, audience=audience, history=history)
+        # P4 已经为路由算过一次意图，这里直接复用，避免一问两次 aux 调用
+        u = understanding or await understand.understand(
+            text, audience=audience, history=history
+        )
         if u.intent.value == "smalltalk":
             return self._plain(text, None, prompts.SMALLTALK, trace_id, started, u=u, ok=True)
         if u.intent.value == "out_of_scope":
@@ -209,6 +213,7 @@ class QAService:
         history: list[tuple[str, str]] | None = None,
         doc_types: list[str] | None = None,
         trace_id: str | None = None,
+        understanding: Understanding | None = None,
     ) -> AsyncIterator[QAEvent]:
         """流式作答。已在吐字后无法撤回，所以流式路径不做修复重写（§8.3）。"""
         started = time.monotonic()
@@ -220,8 +225,12 @@ class QAService:
             ))
             return
 
-        yield QAEvent("stage", stage="understand")
-        u = await understand.understand(text, audience=audience, history=history)
+        if understanding is None:
+            yield QAEvent("stage", stage="understand")
+            u = await understand.understand(text, audience=audience, history=history)
+        else:
+            # P4 已经为路由算过一次意图，这里直接复用，避免一问两次 aux 调用
+            u = understanding
         if u.intent.value == "smalltalk":
             yield QAEvent("delta", text=prompts.SMALLTALK)
             yield QAEvent("final", answer=self._plain(
