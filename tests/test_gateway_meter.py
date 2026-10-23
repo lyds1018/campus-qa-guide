@@ -114,3 +114,32 @@ def test_hard_stop_needs_flag_and_double_budget(settings):
 
     settings.GW_BUDGET_HARD_STOP = True
     assert meter.budget_hard_stop() is True
+
+
+@pytest.mark.django_db
+def test_flush_failure_does_not_break_business(monkeypatch):
+    """台账不是事实源：落库失败要吞掉，不能让已经生成的答案 500。"""
+    import uuid
+
+    from apps.gateway import meter
+
+    meter.record(
+        trace_id=uuid.uuid4(),
+        task="chat",
+        provider="main",
+        model="deepseek-chat",
+        prompt_tokens=10,
+        completion_tokens=5,
+    )
+    assert meter.pending() == 1
+
+    class _Broken:
+        def bulk_create(self, *args, **kwargs):
+            raise RuntimeError("db down")
+
+    class _FakeAICall:
+        objects = _Broken()
+
+    monkeypatch.setattr(meter, "AICall", _FakeAICall)
+    assert meter.flush_sync() == 0
+    assert meter.pending() == 0          # 这批丢了，但不阻塞，也不重试

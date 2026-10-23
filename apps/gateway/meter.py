@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from datetime import date
 from decimal import Decimal
@@ -15,6 +16,8 @@ from django.core.cache import cache
 from django.db import connection
 
 from apps.gateway.models import AICall, CallStatus
+
+logger = logging.getLogger(__name__)
 
 # 元 / 百万 token（输入，输出）。占位值：P2 完成时按供应商当期价目表校准。
 MODEL_PRICING: dict[str, tuple[float, float]] = {
@@ -84,7 +87,10 @@ def record(
     )
     _buffer.append(row)
     if not cached and row.cost:
-        add_spend(row.cost)
+        try:
+            add_spend(row.cost)
+        except Exception:  # noqa: BLE001
+            logger.warning("预算计数失败，忽略本条", exc_info=True)
 
 
 async def maybe_flush() -> None:
@@ -105,12 +111,30 @@ def flush_sync() -> int:
     batch = _buffer[:]
     _buffer.clear()
     _last_flush = time.monotonic()
-    AICall.objects.bulk_create(batch, batch_size=500)
+    try:
+        AICall.objects.bulk_create(batch, batch_size=500)
+    except Exception:  # noqa: BLE001
+        # 台账不是事实源：写不进去就丢这一批。让记账失败把已经生成的答案 500 掉，
+        # 是最典型的"监控把业务搞挂"。
+        logger.exception("ai_calls 落库失败，丢弃 %d 条", len(batch))
+        return 0
     return len(batch)
 
 
 def pending() -> int:
     return len(_buffer)
+
+
+def reset() -> None:
+    """丢弃缓冲并重置计时。
+
+    进程内缓冲是全局的：跨用例残留会让下一个用例在"距上次 flush 已超 5 秒"时
+    触发落库，而没打 django_db 标记的用例一律报 Database access not allowed。
+    只在测试的隔离夹具里调用，运行期不要碰。
+    """
+    global _last_flush
+    _buffer.clear()
+    _last_flush = time.monotonic()
 
 
 # --------------------------------------------------------------- 预算护栏
