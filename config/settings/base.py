@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "apps.knowledge",
     "apps.gateway",
     "apps.qa",
+    "apps.orchestrator",
 ]
 
 MIDDLEWARE = [
@@ -184,6 +185,22 @@ QA_HISTORY_TURNS = _qa_int("QA_HISTORY_TURNS", 3)
 QA_MAX_QUESTION_CHARS = _qa_int("QA_MAX_QUESTION_CHARS", 200)
 QA_MIN_CITATION_COVERAGE = _qa_float("QA_MIN_CITATION_COVERAGE", 0.6)
 QA_REPAIR_MAX = _qa_int("QA_REPAIR_MAX", 1)
+
+
+# 会话与编排（P4）
+def _orc_int(key: str, default: int) -> int:
+    return int(_gw(key, str(default)))
+
+
+def _orc_float(key: str, default: float) -> float:
+    return float(_gw(key, str(default)))
+
+
+ORC_SESSION_TTL = _orc_int("ORC_SESSION_TTL", 1800)      # Redis 上下文窗口存活秒数
+ORC_HISTORY_TURNS = _orc_int("ORC_HISTORY_TURNS", 6)     # 进指代还原的历史轮数
+ORC_FANOUT_MAX = _orc_int("ORC_FANOUT_MAX", 3)           # 一轮最多拆几个子问题
+ORC_SEGMENT_TIMEOUT = _orc_float("ORC_SEGMENT_TIMEOUT", 25.0)   # 单段总超时（秒）
+ORC_HEARTBEAT = _orc_float("ORC_HEARTBEAT", 15.0)        # SSE 心跳间隔（秒）
 
 LOGGING = {
     "version": 1,
