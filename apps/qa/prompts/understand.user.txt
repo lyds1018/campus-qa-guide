@@ -1,0 +1,8 @@
+【历史问句】
+$history
+
+【当前问句】
+$question
+
+【界面已知身份】
+$audience

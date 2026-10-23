@@ -80,6 +80,15 @@ class ReadRepository:
         row = Term.objects.filter(term=text).order_by("-weight").first()
         return row.canonical if row else None
 
+    def terms_map(self) -> dict[str, str]:
+        """全部别名 → 规范名。weight 大的优先，供 M5 做一次性批量改写。"""
+        out: dict[str, str] = {}
+        for term, canonical in Term.objects.order_by("-weight").values_list(
+            "term", "canonical"
+        ):
+            out.setdefault(term, canonical)
+        return out
+
     def stats(self) -> dict[str, int]:
         published_docs = Document.objects.filter(status=PublishStatus.PUBLISHED).count()
         published_chunks = Chunk.objects.filter(status=PublishStatus.PUBLISHED).count()
@@ -190,3 +199,17 @@ class WriteRepository(ReadRepository):
             )
             created += int(is_new)
         return created
+
+    @transaction.atomic
+    def upsert_matter(self, code: str, **fields: Any) -> Matter:
+        matter, _ = Matter.objects.update_or_create(code=code, defaults=fields)
+        return matter
+
+    @transaction.atomic
+    def replace_flows(self, matter: Matter, rows: list[dict[str, Any]]) -> int:
+        """整套替换：步骤序号是相对顺序，逐条更新反而容易出现空洞。"""
+        Flow.objects.filter(matter=matter).delete()
+        if not rows:
+            return 0
+        Flow.objects.bulk_create([Flow(matter=matter, **row) for row in rows], batch_size=200)
+        return len(rows)

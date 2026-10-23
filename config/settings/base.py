@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "apps.common",
     "apps.knowledge",
     "apps.gateway",
+    "apps.qa",
 ]
 
 MIDDLEWARE = [
@@ -117,7 +118,7 @@ GW_CHAT_FALLBACK_MODEL = _gw("GW_CHAT_FALLBACK_MODEL", "qwen-plus")
 
 GW_CHAT_AUX_BASE_URL = _gw("GW_CHAT_AUX_BASE_URL")
 GW_CHAT_AUX_API_KEY = _gw("GW_CHAT_AUX_API_KEY")
-GW_CHAT_AUX_MODEL = _gw("GW_CHAT_AUX_MODEL", "qwen-turbo")
+GW_CHAT_AUX_MODEL = _gw("GW_CHAT_AUX_MODEL", "qwen-flash")
 
 GW_EMBED_BASE_URL = _gw("GW_EMBED_BASE_URL")
 GW_EMBED_API_KEY = _gw("GW_EMBED_API_KEY")
@@ -157,6 +158,32 @@ GW_DAILY_BUDGET_CNY = float(_gw("GW_DAILY_BUDGET_CNY", "20"))
 GW_BUDGET_HARD_STOP = _gw("GW_BUDGET_HARD_STOP", "false").lower() == "true"
 
 GW_FAULT_INJECTION = _gw("GW_FAULT_INJECTION", "false").lower() == "true"
+
+
+# 智能能力（P3）：召回规模、融合与重排门槛、生成与校验口径。
+def _qa_int(key: str, default: int) -> int:
+    return int(_gw(key, str(default)))
+
+
+def _qa_float(key: str, default: float) -> float:
+    return float(_gw(key, str(default)))
+
+
+QA_TOP_K_VECTOR = _qa_int("QA_TOP_K_VECTOR", 20)
+QA_TOP_K_FTS = _qa_int("QA_TOP_K_FTS", 20)
+QA_FUSE_KEEP = _qa_int("QA_FUSE_KEEP", 25)
+QA_EVIDENCE_TOP = _qa_int("QA_EVIDENCE_TOP", 6)
+QA_RRF_K = _qa_int("QA_RRF_K", 60)
+QA_MIN_RERANK_SCORE = _qa_float("QA_MIN_RERANK_SCORE", 0.35)
+QA_MIN_VECTOR_SIM = _qa_float("QA_MIN_VECTOR_SIM", 0.58)
+QA_MIN_FTS_OVERLAP = _qa_int("QA_MIN_FTS_OVERLAP", 2)
+QA_MAX_EVIDENCE_CHARS = _qa_int("QA_MAX_EVIDENCE_CHARS", 6000)
+QA_ANSWER_MAX_TOKENS = _qa_int("QA_ANSWER_MAX_TOKENS", 900)
+QA_ANSWER_TEMPERATURE = _qa_float("QA_ANSWER_TEMPERATURE", 0.2)
+QA_HISTORY_TURNS = _qa_int("QA_HISTORY_TURNS", 3)
+QA_MAX_QUESTION_CHARS = _qa_int("QA_MAX_QUESTION_CHARS", 200)
+QA_MIN_CITATION_COVERAGE = _qa_float("QA_MIN_CITATION_COVERAGE", 0.6)
+QA_REPAIR_MAX = _qa_int("QA_REPAIR_MAX", 1)
 
 LOGGING = {
     "version": 1,

@@ -1,0 +1,9 @@
+【提问人身份】$audience
+【问句】$question
+【规范化问句】$rewritten
+【意图】$intent
+【命中的事项】$matter
+【槽位】$slots
+$conflict_block
+【证据】
+$evidence
