@@ -258,6 +258,8 @@ class Answer:
                     "page": e.page,
                     "doc_type": e.doc_type,
                     "score": round(e.score, 4),
+                    # 双栏对照要显示原文；块本身不超过 CHUNK_SIZE(500)，这里再压一道
+                    "content": e.content[:600],
                     "sim": round(e.similarity, 4),
                     "overlap": e.overlap,
                     "source": e.source,

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "apps.gateway",
     "apps.qa",
     "apps.orchestrator",
+    "apps.access",
 ]
 
 MIDDLEWARE = [
@@ -30,6 +31,10 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    # 接入层（P5）：追踪在最外，审计在鉴权外，鉴权贴近视图
+    "apps.access.middleware.TraceIdMiddleware",
+    "apps.access.middleware.AuditMiddleware",
+    "apps.access.middleware.AccessMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
 ]
@@ -201,6 +206,20 @@ ORC_HISTORY_TURNS = _orc_int("ORC_HISTORY_TURNS", 6)     # 进指代还原的历
 ORC_FANOUT_MAX = _orc_int("ORC_FANOUT_MAX", 3)           # 一轮最多拆几个子问题
 ORC_SEGMENT_TIMEOUT = _orc_float("ORC_SEGMENT_TIMEOUT", 25.0)   # 单段总超时（秒）
 ORC_HEARTBEAT = _orc_float("ORC_HEARTBEAT", 15.0)        # SSE 心跳间隔（秒）
+
+
+# 接入层（P5）。模拟身份两枚演示 token，换真登录时只改 apps/access/identity.py
+ACCESS_STUDENT_TOKEN = _gw("ACCESS_STUDENT_TOKEN", "student-demo")
+ACCESS_ADMIN_TOKEN = _gw("ACCESS_ADMIN_TOKEN", "admin-demo")
+ACCESS_RATE_CHAT = _qa_int("ACCESS_RATE_CHAT", 20)       # 每分钟问答次数
+ACCESS_RATE_WRITE = _qa_int("ACCESS_RATE_WRITE", 60)     # 每分钟写操作
+ACCESS_RATE_READ = _qa_int("ACCESS_RATE_READ", 120)      # 每分钟读操作
+ACCESS_AUDIT_ENABLED = _gw("ACCESS_AUDIT_ENABLED", "true").lower() == "true"
+
+
+# 知识运营（P6）：上传先落到本地暂存区，再由 P1 的 worker 解析入库
+OPS_UPLOAD_DIR = _gw("OPS_UPLOAD_DIR", str(Path(BASE_DIR) / "var" / "uploads"))
+OPS_UPLOAD_MAX_MB = _qa_int("OPS_UPLOAD_MAX_MB", 20)
 
 LOGGING = {
     "version": 1,
