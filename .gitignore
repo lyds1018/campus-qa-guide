@@ -17,6 +17,10 @@ wheels/
 staticfiles/
 media/
 
+# 本地语料与解析中间产物（体积大、含校内文件，不入库）
+corpus/
+.ingest-work/
+
 # 前端
 web/node_modules/
 web/dist/
