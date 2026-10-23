@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "ninja",
     "apps.common",
     "apps.knowledge",
+    "apps.gateway",
 ]
 
 MIDDLEWARE = [
@@ -100,9 +101,71 @@ CHUNK_OVERLAP = int(env("CHUNK_OVERLAP", "80"))
 INGEST_QUEUE = env("INGEST_QUEUE", "queue:ingest")
 WORKER_STALE_MINUTES = int(env("WORKER_STALE_MINUTES", "30"))
 
+
+# 模型网关（P2）。槽位配置允许空缺：embedding / rerank 未配时相关调用抛 NotConfigured。
+def _gw(key: str, default: str = "") -> str:
+    return env(key, default, required=False) or default
+
+
+GW_CHAT_MAIN_BASE_URL = _gw("GW_CHAT_MAIN_BASE_URL")
+GW_CHAT_MAIN_API_KEY = _gw("GW_CHAT_MAIN_API_KEY")
+GW_CHAT_MAIN_MODEL = _gw("GW_CHAT_MAIN_MODEL", "deepseek-chat")
+
+GW_CHAT_FALLBACK_BASE_URL = _gw("GW_CHAT_FALLBACK_BASE_URL")
+GW_CHAT_FALLBACK_API_KEY = _gw("GW_CHAT_FALLBACK_API_KEY")
+GW_CHAT_FALLBACK_MODEL = _gw("GW_CHAT_FALLBACK_MODEL", "qwen-plus")
+
+GW_CHAT_AUX_BASE_URL = _gw("GW_CHAT_AUX_BASE_URL")
+GW_CHAT_AUX_API_KEY = _gw("GW_CHAT_AUX_API_KEY")
+GW_CHAT_AUX_MODEL = _gw("GW_CHAT_AUX_MODEL", "qwen-turbo")
+
+GW_EMBED_BASE_URL = _gw("GW_EMBED_BASE_URL")
+GW_EMBED_API_KEY = _gw("GW_EMBED_API_KEY")
+GW_EMBED_MODEL = _gw("GW_EMBED_MODEL", "BAAI/bge-m3")
+GW_EMBED_DOC_PREFIX = _gw("GW_EMBED_DOC_PREFIX")
+GW_EMBED_QUERY_PREFIX = _gw("GW_EMBED_QUERY_PREFIX")
+
+GW_RERANK_BASE_URL = _gw("GW_RERANK_BASE_URL")
+GW_RERANK_API_KEY = _gw("GW_RERANK_API_KEY")
+GW_RERANK_MODEL = _gw("GW_RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
+
+GW_RETRY_MAX = int(_gw("GW_RETRY_MAX", "3"))
+GW_RETRY_INITIAL = float(_gw("GW_RETRY_INITIAL", "0.5"))
+
+GW_TIMEOUT_CONNECT = float(_gw("GW_TIMEOUT_CONNECT", "3"))
+GW_TIMEOUT_CHAT = float(_gw("GW_TIMEOUT_CHAT", "60"))
+GW_TIMEOUT_FIRST_TOKEN = float(_gw("GW_TIMEOUT_FIRST_TOKEN", "20"))
+GW_TIMEOUT_STREAM = float(_gw("GW_TIMEOUT_STREAM", "120"))
+GW_TIMEOUT_EMBED = float(_gw("GW_TIMEOUT_EMBED", "30"))
+GW_TIMEOUT_RERANK = float(_gw("GW_TIMEOUT_RERANK", "20"))
+
+GW_BREAKER_THRESHOLD = int(_gw("GW_BREAKER_THRESHOLD", "5"))
+GW_BREAKER_WINDOW = int(_gw("GW_BREAKER_WINDOW", "60"))
+GW_BREAKER_COOLDOWN = int(_gw("GW_BREAKER_COOLDOWN", "60"))
+GW_BREAKER_RECOVER = int(_gw("GW_BREAKER_RECOVER", "2"))
+
+GW_MAX_CONCURRENCY = int(_gw("GW_MAX_CONCURRENCY", "8"))
+
+GW_CACHE_ENABLED = _gw("GW_CACHE_ENABLED", "true").lower() == "true"
+GW_CACHE_TTL_CHAT = int(_gw("GW_CACHE_TTL_CHAT", "86400"))
+GW_CACHE_TTL_EMBED = int(_gw("GW_CACHE_TTL_EMBED", "2592000"))
+GW_CACHE_TTL_RERANK = int(_gw("GW_CACHE_TTL_RERANK", "604800"))
+GW_CACHE_TTL_DEGRADED = int(_gw("GW_CACHE_TTL_DEGRADED", "600"))
+GW_KB_FINGERPRINT_TTL = int(_gw("GW_KB_FINGERPRINT_TTL", "60"))
+
+GW_DAILY_BUDGET_CNY = float(_gw("GW_DAILY_BUDGET_CNY", "20"))
+GW_BUDGET_HARD_STOP = _gw("GW_BUDGET_HARD_STOP", "false").lower() == "true"
+
+GW_FAULT_INJECTION = _gw("GW_FAULT_INJECTION", "false").lower() == "true"
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", "INFO")},
+    # httpx 每次请求打一条 INFO，会把命令输出和 uvicorn 日志冲掉
+    "loggers": {
+        "httpx": {"level": "WARNING"},
+        "httpcore": {"level": "WARNING"},
+    },
 }

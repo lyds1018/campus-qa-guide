@@ -13,10 +13,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # 本地打印每条 SQL，便于排查 ORM 问题
+# 合并而非覆盖：base 里已把 httpx / httpcore 压到 WARNING，直接赋值会把它抹掉
 LOGGING["loggers"] = {
+    **LOGGING.get("loggers", {}),
     "django.db.backends": {
         "handlers": ["console"],
         "level": "DEBUG",
         "propagate": False,
-    }
+    },
 }
