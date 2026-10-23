@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "ninja",
     "apps.common",
+    "apps.knowledge",
 ]
 
 MIDDLEWARE = [
@@ -89,6 +90,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 APP_VERSION = env("APP_VERSION", "0.1.0")
 MINIO_ENDPOINT = env("MINIO_ENDPOINT")
 MINIO_BUCKET = env("MINIO_BUCKET")
+MINIO_ACCESS_KEY = env("MINIO_ROOT_USER")
+MINIO_SECRET_KEY = env("MINIO_ROOT_PASSWORD")
+
+# 知识入库（P1）
+EMBEDDING_DIM = int(env("EMBEDDING_DIM", "1024"))
+CHUNK_SIZE = int(env("CHUNK_SIZE", "500"))
+CHUNK_OVERLAP = int(env("CHUNK_OVERLAP", "80"))
+INGEST_QUEUE = env("INGEST_QUEUE", "queue:ingest")
+WORKER_STALE_MINUTES = int(env("WORKER_STALE_MINUTES", "30"))
 
 LOGGING = {
     "version": 1,
