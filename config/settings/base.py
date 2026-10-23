@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "apps.qa",
     "apps.orchestrator",
     "apps.access",
+    "apps.ops",
 ]
 
 MIDDLEWARE = [

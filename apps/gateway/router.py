@@ -10,6 +10,7 @@ from typing import Literal
 
 from django.conf import settings
 
+from apps.gateway import overrides
 from apps.gateway.base import (
     ChatAdapter,
     EmbedAdapter,
@@ -25,6 +26,8 @@ ALL_SLOTS = ["main", "fallback", "aux", "embed", "rerank"]
 
 
 def _chat_adapter(slot: str, base_url: str, api_key: str, model: str) -> ChatAdapter | None:
+    # 运营侧覆盖（P6）在这里生效：base_url / model 可换，key 只认 .env
+    base_url, model = overrides.resolve(slot, base_url, model)
     if not (base_url and api_key and model):
         return None
     return OpenAICompatAdapter(slot=slot, base_url=base_url, api_key=api_key, model=model)
@@ -75,13 +78,16 @@ def chat_chain(role: Role = "main") -> list[ChatAdapter]:
 
 def embed_adapter() -> EmbedAdapter:
     """embedding 只有一条路：向量与模型强绑定，不做运行期降级。"""
-    if not (settings.GW_EMBED_BASE_URL and settings.GW_EMBED_API_KEY):
+    base_url, model = overrides.resolve(
+        "embed", settings.GW_EMBED_BASE_URL, settings.GW_EMBED_MODEL
+    )
+    if not (base_url and settings.GW_EMBED_API_KEY):
         raise NotConfigured("GW_EMBED_* 未配置，向量相关能力不可用")
     return OpenAICompatAdapter(
         slot="embed",
-        base_url=settings.GW_EMBED_BASE_URL,
+        base_url=base_url,
         api_key=settings.GW_EMBED_API_KEY,
-        model=settings.GW_EMBED_MODEL,
+        model=model,
         doc_prefix=settings.GW_EMBED_DOC_PREFIX,
         query_prefix=settings.GW_EMBED_QUERY_PREFIX,
     )
@@ -89,13 +95,16 @@ def embed_adapter() -> EmbedAdapter:
 
 def rerank_adapter() -> RerankAdapter | None:
     """未配置返回 None，调用方按"不重排"降级，不算故障。"""
-    if not (settings.GW_RERANK_BASE_URL and settings.GW_RERANK_API_KEY):
+    base_url, model = overrides.resolve(
+        "rerank", settings.GW_RERANK_BASE_URL, settings.GW_RERANK_MODEL
+    )
+    if not (base_url and settings.GW_RERANK_API_KEY):
         return None
     return CohereRerankAdapter(
         slot="rerank",
-        base_url=settings.GW_RERANK_BASE_URL,
+        base_url=base_url,
         api_key=settings.GW_RERANK_API_KEY,
-        model=settings.GW_RERANK_MODEL,
+        model=model,
     )
 
 

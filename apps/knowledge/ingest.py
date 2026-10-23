@@ -1,6 +1,7 @@
 """M11 入库侧：扫描 → 校验 → 解析 → 切分 → 入库。
 
-幂等：checksum 相同直接跳过；同标题同类型有新内容则归档旧版、版本号 +1。
+幂等：checksum 相同直接跳过；同标题同类型有新内容则版本号 +1。
+归档时机：只有 publish=True（入库即发布）才归档旧版；草稿入库不动在版版本（P6 K2）。
 事务：文档与块写在同一个事务里，任一步失败整体回滚（原件对象不回滚，可复用）。
 """
 
@@ -143,7 +144,10 @@ def process_file(
     if on_stage:
         on_stage("persist")
     with transaction.atomic():
-        repo.archive_existing(title, doc_type)
+        # 只有"入库即发布"才归档旧版。草稿入库不归档——P6 的审核期里，
+        # 新版还是 draft，旧版必须继续在线，否则文件一上传知识就先黑了。
+        if publish:
+            repo.archive_existing(title, doc_type)
         doc = repo.create_document(
             title=title,
             doc_type=doc_type,

@@ -34,3 +34,6 @@ web/.vite/
 
 docs/
 .workbuddy/
+
+# 上传暂存区（原件由 worker 解析后进 MinIO）
+var/

@@ -57,3 +57,27 @@ class AICall(models.Model):
 
     def __str__(self) -> str:
         return f"{self.task}#{self.id} {self.provider}/{self.model} {self.status}"
+
+
+class ModelSetting(models.Model):
+    """模型槽位覆盖。
+
+P6 的运营界面改这张表，不改 `.env`：改文件要重启进程，而且多实例各改各的。
+**密钥不进这张表**：key 留在 `.env`，这里只覆盖 base_url 与模型名。
+    """
+
+    SLOTS = ("main", "fallback", "aux", "embed", "rerank")
+
+    slot = models.CharField(max_length=16, unique=True)
+    base_url = models.CharField(max_length=200, blank=True, default="")
+    model = models.CharField(max_length=80, blank=True, default="")
+    enabled = models.BooleanField(default=True)
+    note = models.CharField(max_length=200, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "model_settings"
+        ordering = ["slot"]
+
+    def __str__(self) -> str:
+        return f"{self.slot} → {self.model or '(跟随 .env)'}"
