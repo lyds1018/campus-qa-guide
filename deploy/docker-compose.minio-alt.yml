@@ -1,0 +1,28 @@
+# 叠加文件：仅当官方 minio/minio 镜像不可获取时使用。
+# MinIO 自 2025 年起已从 Docker Hub 下架，quay.io 公共库亦不再匿名可拉。
+# 用法：
+#   docker compose --env-file .env \
+#     -f deploy/docker-compose.yml -f deploy/docker-compose.minio-alt.yml up -d
+# 该镜像为 Bitnami 打包的同一份 MinIO 二进制，端口与健康端点行为一致。
+
+services:
+  minio:
+    image: bitnamilegacy/minio:latest
+    entrypoint: ["/opt/bitnami/scripts/minio/entrypoint.sh"]
+    command: ["/opt/bitnami/scripts/minio/run.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio-init:
+    image: bitnamilegacy/minio:latest
+    depends_on:
+      minio: { condition: service_healthy }
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$MINIO_BUCKET &&
+      mc anonymous set none local/$$MINIO_BUCKET
+      "
