@@ -1,0 +1,41 @@
+// P3 黄金集：expect=answer 表示应给出有依据的回答，refuse 表示应拒答。
+// doc 是期望出现在 top3 证据里的文档标题片段；must 是回答里必须出现的字符串。
+{"q": "学生证丢了怎么补办", "expect": "answer", "intent": "matter", "doc": "学生证补办", "must": ["学籍科"]}
+{"q": "补办学生证要带什么材料", "expect": "answer", "intent": "matter", "doc": "学生证补办"}
+{"q": "学生证补办一般多久能拿到", "expect": "answer", "intent": "matter", "doc": "学生证补办"}
+{"q": "成绩单在哪里打印", "expect": "answer", "intent": "matter", "doc": "成绩单打印", "must": ["图书馆"]}
+{"q": "成绩单打印要收费吗", "expect": "answer", "intent": "faq", "doc": "成绩单打印"}
+{"q": "校园卡丢了去哪儿补", "expect": "answer", "intent": "matter", "doc": "校园卡补办", "must": ["校园卡服务中心"]}
+{"q": "校园卡补办能当场拿到吗", "expect": "answer", "intent": "faq", "doc": "校园卡补办"}
+{"q": "国家奖学金的奖励标准是多少", "expect": "answer", "intent": "policy", "doc": "国家奖学金", "must": ["8000"]}
+{"q": "申请国家奖学金需要什么条件", "expect": "answer", "intent": "policy", "doc": "国家奖学金"}
+{"q": "休学需要哪些材料", "expect": "answer", "intent": "matter", "doc": "休学"}
+{"q": "休学之后怎么复学", "expect": "answer", "intent": "matter", "doc": "复学"}
+{"q": "转专业申请的流程是什么", "expect": "answer", "intent": "matter", "doc": "转专业"}
+{"q": "退宿手续怎么办", "expect": "answer", "intent": "matter", "doc": "退宿"}
+{"q": "宿舍调换怎么申请", "expect": "answer", "intent": "matter", "doc": "宿舍调换"}
+{"q": "户口迁移怎么办", "expect": "answer", "intent": "matter", "doc": "户口迁移"}
+{"q": "毕业档案怎么转递", "expect": "answer", "intent": "matter", "doc": "档案转递"}
+{"q": "毕业离校要办哪些手续", "expect": "answer", "intent": "matter", "doc": "毕业离校"}
+{"q": "校园网怎么接入", "expect": "answer", "intent": "matter", "doc": "校园网接入"}
+{"q": "校园VPN怎么申请", "expect": "answer", "intent": "matter", "doc": "VPN"}
+{"q": "学校邮箱怎么开通", "expect": "answer", "intent": "matter", "doc": "邮箱"}
+{"q": "重修怎么报名", "expect": "answer", "intent": "matter", "doc": "重修报名"}
+{"q": "缓考怎么申请", "expect": "answer", "intent": "matter", "doc": "缓考"}
+{"q": "免听需要什么条件", "expect": "answer", "intent": "policy", "doc": "免听"}
+{"q": "选课什么时候开始", "expect": "answer", "intent": "faq", "doc": "选课"}
+{"q": "课程容量满了怎么办", "expect": "answer", "intent": "faq", "doc": "选课"}
+{"q": "勤工助学怎么申请", "expect": "answer", "intent": "matter", "doc": "勤工助学"}
+{"q": "心理咨询怎么预约", "expect": "answer", "intent": "matter", "doc": "心理咨询"}
+{"q": "国家助学贷款怎么申请", "expect": "answer", "intent": "matter", "doc": "助学贷款"}
+{"q": "对学校处理结果有异议怎么申诉", "expect": "answer", "intent": "policy", "doc": "申诉"}
+{"q": "考试作弊会怎么处理", "expect": "answer", "intent": "policy", "doc": "考场纪律"}
+{"q": "学位证丢了能补办吗", "expect": "answer", "intent": "matter", "doc": "学位证"}
+{"q": "在读证明怎么开", "expect": "answer", "intent": "matter", "doc": "在读证明"}
+{"q": "一卡通丢了怎么办", "expect": "answer", "intent": "matter", "doc": "校园卡"}
+{"q": "游泳馆几点开门", "expect": "refuse", "intent": "faq"}
+{"q": "学校附近哪家火锅好吃", "expect": "refuse", "intent": "out_of_scope"}
+{"q": "帮我写一段 Python 爬虫代码", "expect": "refuse", "intent": "out_of_scope"}
+{"q": "今天天气怎么样", "expect": "refuse", "intent": "out_of_scope"}
+{"q": "你好", "expect": "smalltalk", "intent": "smalltalk"}
+{"q": "你能做什么", "expect": "smalltalk", "intent": "smalltalk"}
