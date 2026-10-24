@@ -121,3 +121,60 @@ def matrix_rows(result: dict) -> list[list[str]]:
             ]
         )
     return rows
+
+
+def markdown_report(result: dict, *, label: str, cost, duration_ms: int) -> str:
+    """演练报告：矩阵 + 判定 + 口径，与基线报告同一目录、同一命名规则。"""
+    env = runner.env_snapshot()
+    scenarios = result["scenarios"]
+    calls = sum(item["samples"] for item in scenarios)
+    failed = [item for item in scenarios if item["bad"] > 0]
+
+    lines = [
+        f"# 降级演练 · {label}",
+        "",
+        f"- 生成时间：{env['at']}",
+        f"- 语料：{env['documents']} 在版文档 / {env['chunks']} 块（已向量 {env['embedded']}）"
+        f" / {env['matters']} 事项",
+        f"- 模型：main `{env['main_model']}`、embed `{env['embed_model']}`、"
+        f"rerank `{env['rerank_model']}`",
+        f"- 样本：黄金集前 {result['limit']} 条 × {len(scenarios)} 场景，共 {calls} 次调用",
+        "- 缓存：关闭（命中缓存就不发请求，注入的故障不会触发）",
+        f"- 成本：¥{cost:.4f}，耗时 {duration_ms / 1000:.1f}s",
+        "",
+        "## 一、场景矩阵",
+        "",
+        "| 场景 | 注入说明 | 作答 | 拒答 | 兜底出处 | 降级标记 | 演练失败 | P50 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for item in scenarios:
+        lines.append(
+            f"| {item['scenario']} | {item['desc']} | {item['answered']}/{item['samples']} | "
+            f"{item['refused']} | {item['fallback']} | {item['degraded']} | "
+            f"{item['bad']} | {item['latency_p50_ms']}ms |"
+        )
+
+    lines += ["", "## 二、判定", ""]
+    if not failed:
+        lines.append(
+            f"{len(scenarios)} 个场景全部通过：没有把该拒答的问题答成肯定结论，"
+            "也没有出现既未作答又未给原文的情况。"
+        )
+    else:
+        names = "、".join(item["scenario"] for item in failed)
+        lines.append(f"{len(scenarios) - len(failed)}/{len(scenarios)} 通过，失败场景：{names}。")
+        lines += ["", "| 场景 | 演练失败 | 注入说明 |", "| --- | --- | --- |"]
+        for item in failed:
+            lines.append(f"| {item['scenario']} | {item['bad']} | {item['desc']} |")
+
+    lines += [
+        "",
+        "## 三、口径说明",
+        "",
+        "- 演练失败只算两类：该拒答却作答（错误自信），或该作答却没答且没给原文出处"
+        "（用户什么都没拿到）。",
+        "- 未作答但给出原文出处属于优雅降级，不计失败。",
+        "- 延迟含重试与换槽等待，明显高于基线报告属预期。",
+    ]
+    return "\n".join(lines) + "\n"
+

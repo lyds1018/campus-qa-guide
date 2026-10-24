@@ -2,9 +2,7 @@
 
 面向单所高校的校务问答与办事指南系统。用户用自然语言提问，系统从校内公开资料中检索依据、生成回答，并附上可核对的原文；证据不足时明确拒答，不猜测、不拼凑。
 
-当前已完成 P0–P7：基础设施、知识入库、模型网关、检索问答、会话编排、接入控制、知识运营、评测反馈。前端为桌面优先的三栏工作台，并适配移动端。
-
-> 演示环境，不是生产系统。身份、学校数据、模型密钥都需要替换后才能上线。
+当前已完成：基础设施、知识入库、模型网关、检索问答、会话编排、接入控制、知识运营、评测反馈。
 
 ## 功能概览
 
@@ -58,7 +56,7 @@ flowchart LR
 | 异步与 HTTP | ASGI、Uvicorn、httpx、tenacity |
 | 数据 | PostgreSQL 16 + pgvector、Redis 7、MinIO |
 | 文档处理 | PyMuPDF、jieba |
-| 前端 | Vue 3.5、TypeScript 5.7、Vite 6、Element Plus 2.9、Pinia、Vue Router |
+| 前端 | Vue 3.5、TypeScript 5.7、Vite 6、Element Plus 2.9、Vue Router |
 | 工程 | uv、pnpm 9、Docker Compose、ruff、pytest |
 
 ## 目录
@@ -78,17 +76,19 @@ flowchart LR
 ├─ deploy/             # Compose、PG 初始化脚本
 ├─ tests/              # 后端测试
 ├─ web/                # Vue 3 前端
+├─ docs/               # 概要设计、环境依赖、详细设计、评测报告与图源
+├─ scripts/            # 语料生成等一次性脚本
 ├─ manage.py
 └─ pyproject.toml
 ```
 
-`corpus/`、`docs/`、`.workbuddy/`、`var/` 被 `.gitignore` 排除：语料可能含校内文件，文档与上传暂存区不进入版本库。
+`corpus/`、`var/`、`.workbuddy/tmp/` 被 `.gitignore` 排除：语料与上传暂存区体积大，临时产物不进入版本库。
 
 ## 快速开始
 
 ### 1. 前置条件
 
-- Python 3.10（项目限定 `>=3.10,<3.11`）
+- Python 3.10
 - [uv](https://docs.astral.sh/uv/)
 - Node.js 20+ 与 pnpm 9
 - Docker Desktop 或兼容的 Docker Compose
@@ -108,15 +108,11 @@ cp .env.example .env
 - `GW_CHAT_MAIN_BASE_URL`、`GW_CHAT_MAIN_API_KEY`
 - `GW_EMBED_BASE_URL`、`GW_EMBED_API_KEY`
 
-`.env` 已被忽略。密钥只在环境变量中维护，前端与运营接口都不能读写密钥。
-
 ### 3. 启动依赖
 
 ```bash
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
-
-`--env-file` 不能省略：Compose 的变量插值不读取服务里的 `env_file`，漏掉会把数据库口令替换成空串。
 
 如果官方 MinIO 镜像无法拉取，改用叠加文件：
 
@@ -136,7 +132,11 @@ uv run python manage.py seed_terms
 
 ### 5. 导入语料
 
-将自己的 Markdown / PDF / TXT 语料放入 `corpus/`。仓库不附带校内文件。
+仓库不附带语料。先生成 50 份示例语料（4 类：指南、制度、FAQ、通知，PDF 与 Markdown 混合），或换成自己的 Markdown / PDF / TXT 放入 `corpus/`：
+
+```bash
+uv run python scripts/gen_corpus.py
+```
 
 ```bash
 # 同步导入并直接发布，适合本地首次初始化
@@ -154,8 +154,6 @@ uv run python manage.py backfill_embeddings
 ```bash
 uv run python manage.py worker
 ```
-
-草稿不会替换在版版本，审核后再发布。
 
 ### 6. 启动后端
 
@@ -180,7 +178,7 @@ pnpm --dir web dev
 - 知识运营：`http://127.0.0.1:5173/admin?token=admin-demo`
 - 系统状态：`http://127.0.0.1:5173/health`
 
-Vite 将 `/api` 代理到 `http://127.0.0.1:8000`，前端代码不写死后端地址。
+Vite 将 `/api` 代理到 `http://127.0.0.1:8000`
 
 ## 演示身份
 
@@ -189,7 +187,7 @@ Vite 将 `/api` 代理到 `http://127.0.0.1:8000`，前端代码不写死后端�
 | 身份 | Token | 权限 |
 | --- | --- | --- |
 | 学生 | `student-demo` | 问答、历史、反馈、清单导出 |
-| 管理员 | `admin-demo` | 学生能力 + `/api/ops/*` 运营接口 |
+| 管理员 | `admin-demo` | 学生能力 + `/api/ops/` 运营接口 |
 
 前端通过 `X-Demo-Token` 请求头识别身份，token 保存在 `localStorage`。页面右上角可切换；也可用 `?token=admin-demo` 直接进入。
 
@@ -218,7 +216,7 @@ Vite 将 `/api` 代理到 `http://127.0.0.1:8000`，前端代码不写死后端�
 | `/api/ops/models` | GET/PUT | 模型槽位覆盖配置 |
 | `/api/ops/metrics` | GET | 在线问答、反馈、回归摘要 |
 
-内部接口还包括 `/api/kb/*`、`/api/gw/*`、`/api/qa/*`、`/api/orc/*`，用于评测、排障和内部调用。生产部署应通过反向代理限制这些路径只对内网开放，不要与 `/api/chat/*` 一起暴露。
+内部接口还包括 `/api/kb/`、`/api/gw/`、`/api/qa/`、`/api/orc/`，用于评测、排障和内部调用。
 
 ### SSE 事件
 
@@ -246,28 +244,7 @@ session → stage → delta* → answer → notice* → done
 | `uv run python manage.py p7_eval --label baseline` | 黄金集批量回归 |
 | `uv run python manage.py p7_drill` | 降级演练 |
 | `uv run python manage.py p7_golden [--apply]` | 从反馈生成黄金集候选 |
-| `uv run python manage.py qa_eval` | 旧版兼容评测命令 |
-
-## 评测口径
-
-评测对象是 `qa.answer()`（能力层），不是会话层 `orc.turn()`。跑批和演练走命令行，HTTP 只读历史，避免评测往 `messages` 写脏数据。
-
-- 黄金集：`apps/qa/fixtures/golden.jsonl`，当前 39 条，覆盖可答、应拒答、多文档与数值口径。
-- 回归指标：`hit@3`、`must` 命中、可答判对、拒答判对、引用覆盖、校验通过、P50/P95、成本。
-- 演练必须关闭 `GW_CACHE_ENABLED`，否则会命中 L1 缓存，故障根本没有触发。
-- 延迟必须区分冷缓存与热缓存。热缓存的毫秒级结果不代表真实生成耗时。
-- 报告为 Markdown，写入 `EVAL_REPORT_DIR`。
-
-本机参考基线（50 份文档、117 个块、39 条黄金集）：
-
-| 指标 | 冷缓存 |
-| --- | --- |
-| hit@3 / must / 可答判对 / 拒答判对 | 100% |
-| 引用覆盖 | 94% |
-| P50 / P95 | 3469ms / 4250ms |
-| 同批第二次（热缓存）P50 | 62ms |
-
-这些数字用于回归对照，不是模型效果承诺；更换语料、供应商或参数后必须重跑。
+| `uv run python manage.py qa_eval` | 快速回归（同一黄金集，不写档案与报告） |
 
 ## 测试与检查
 
@@ -275,24 +252,14 @@ session → stage → delta* → answer → notice* → done
 # 后端静态检查
 uv run ruff check apps config tests
 
-# 后端测试（需要 .env 与 PostgreSQL / Redis / MinIO 可用）
+# 后端测试（先完成「快速开始 3. 启动依赖」，PostgreSQL / Redis / MinIO 必须可连）
 uv run pytest -q
 
 # 前端类型检查与生产构建
 pnpm --dir web build
 ```
 
-当前基线：`ruff` 全通过，后端 `129 passed`，前端构建通过。
-
-## 设计取舍
-
-- **可答判定使用绝对量**：重排分、余弦相似度、命中词数。RRF 融合分只表达排名，不单独作为可答门槛。
-- **拒答优先于猜测**：没有证据、证据不足或答案未通过核对时，给出明确原因和可查来源，不编造。
-- **同步与流式分工明确**：同步允许一次修复重写；流式已在吐字，不做事后重写。多子问题并行时整段装配，不伪装逐字流式。
-- **网关不装模型 SDK**：统一走 OpenAI 兼容协议，供应商差异由两个适配器吸收，降低锁死风险。
-- **运营改动不直接改在版知识**：上传先生成草稿，发布与回滚都经过版本状态机，并主动失效答案缓存与词典缓存。
-- **前端不追求“像人”**：状态、依据、延迟和拒答原因都可核对，减少装饰性动效和无意义话术。
-- **审计与限流旁路失败不阻断主链路**：Redis 或审计写库异常时，问答仍可继续，问题记录到日志。
+当前基线：`ruff` 全通过，后端 `pytest` 全绿，前端构建通过。
 
 ## 已知限制
 
@@ -303,33 +270,4 @@ pnpm --dir web build
 - 办事清单依赖有序号条目，散文化段落可能抽不出完整清单。
 - 回答质量取决于语料完整度、embedding 与重排模型；未配置 embedding 时向量召回不可用。
 - Element Plus 采用完整引入，前端 vendor 块约 940KB（gzip 约 302KB）；已做路由懒加载与 vendor 拆分。
-- `corpus/` 与 `docs/` 不随仓库分发，克隆后需要自备语料与设计文档。
-
-## 排障
-
-| 现象 | 排查 |
-| --- | --- |
-| `/api/health` 返回 503 | 看 `checks` 中哪项为 `false`；确认三个容器都是 healthy |
-| Compose 起来后数据库认证失败 | 启动命令是否带了 `--env-file .env` |
-| MinIO 镜像拉取失败 | 叠加 `deploy/docker-compose.minio-alt.yml` |
-| 上传成功但检索不到新内容 | 任务是否完成、文档是否发布、是否执行 `backfill_embeddings` |
-| 本机端口探测异常 | 本机可能设置了 `HTTP_PROXY`；curl 加 `--noproxy '*'`，httpx 关闭 `trust_env` |
-| 第一次回答很慢、第二次很快 | 第二次命中缓存；评测时记录冷/热口径 |
-| 后台接口 403 | 当前是学生身份；切换右上角管理员，或使用 `?token=admin-demo` |
-| 前端请求 401 | `X-Demo-Token` 缺失或与 `.env` 中 token 不一致 |
-
-## 安全边界
-
-- 仓库不包含真实密钥；`.env` 永远不提交。
-- 演示 token、限流与审计只用于展示接入层设计，生产需要替换为学校统一身份认证。
-- `/api/orc/*`、`/api/qa/*`、`/api/gw/*`、`/api/kb/*` 目前由 token 保护，但没有独立内网凭据；生产必须增加网络层隔离。
-- 上传文件限制后缀与大小，原件存本地暂存区后再进对象存储；不要直接将上传目录暴露为静态目录。
-- 日志与审计会记录 `user_key`、路径、状态码与延迟，不记录模型密钥。
-
-## 文档
-
-更细的设计资料位于本地 `docs/`（未纳入 Git）：概要设计、环境与依赖、按阶段的详细设计、架构图与阶段计划。
-
-## 使用范围
-
-本项目为毕业设计与教学演示代码，仓库未附带开源许可证。第三方依赖遵循各自许可证；未经授权不应直接用于生产环境。
+- `corpus/` 不随仓库分发，克隆后先跑 `scripts/gen_corpus.py` 生成示例语料。

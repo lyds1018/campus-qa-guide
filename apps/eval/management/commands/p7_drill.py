@@ -1,5 +1,7 @@
 """降级演练：按场景注入故障，跑同一批样本，输出"坏一半时还像不像话"的矩阵。
 
+报告落 `EVAL_REPORT_DIR`，与批量回归的报告同目录、同命名规则。
+
 用法：
     uv run python manage.py p7_drill --limit 5
     uv run python manage.py p7_drill --limit 3 --json
@@ -27,6 +29,7 @@ class Command(BaseCommand):
         parser.add_argument("--file", default="", help="黄金集路径")
         parser.add_argument("--label", default="", help="本次演练标签")
         parser.add_argument("--json", action="store_true", help="输出 JSON")
+        parser.add_argument("--no-report", action="store_true", help="不写 markdown 报告")
 
     def handle(self, *args, **opts):
         rows = runner.load_rows(Path(opts["file"]) if opts["file"] else None)
@@ -49,12 +52,21 @@ class Command(BaseCommand):
         duration_ms = int((time.monotonic() - started) * 1000)
         cost = runner.cost_since(started_at)
         samples = sum(item["samples"] for item in result["scenarios"])
+        label = opts["label"] or "演练"
+
+        report_path = ""
+        if not opts["no_report"]:
+            text = drill.markdown_report(
+                result, label=label, cost=cost, duration_ms=duration_ms
+            )
+            report_path = str(runner.write_report(text, label=label))
 
         record = EvalRun.objects.create(
             kind=EvalRun.Kind.DRILL,
             label=opts["label"],
             samples=samples,
             metrics=result,
+            report_path=report_path,
             cost=cost,
             duration_ms=duration_ms,
             started_at=started_at,
@@ -64,7 +76,13 @@ class Command(BaseCommand):
         if opts["json"]:
             self.stdout.write(
                 json.dumps(
-                    {"run_id": record.pk, "cost": str(cost), "duration_ms": duration_ms, **result},
+                    {
+                        "run_id": record.pk,
+                        "cost": str(cost),
+                        "duration_ms": duration_ms,
+                        "report": report_path,
+                        **result,
+                    },
                     ensure_ascii=False,
                 )
             )
@@ -84,6 +102,8 @@ class Command(BaseCommand):
                 f"记录 drill#{record.pk}"
             )
         )
+        if report_path:
+            self.stdout.write(self.style.SUCCESS(f"报告：{report_path}"))
 
 
 def _pad(text: str, width: int) -> str:

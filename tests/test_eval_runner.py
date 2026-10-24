@@ -221,3 +221,35 @@ def test_drill_matrix_shape():
     assert rows[0][0] == "场景"
     assert rows[1][0] == "baseline"
     assert rows[1][-1] == "100ms"
+
+
+@pytest.mark.django_db
+def test_drill_report_names_failed_scenarios():
+    """报告要单独点名失败场景，不能只给一张矩阵。"""
+    base = {
+        "samples": 5,
+        "answered": 3,
+        "refused": 2,
+        "fallback": 0,
+        "degraded": 2,
+        "with_citation": 3,
+        "latency_p50_ms": 9500,
+        "elapsed_ms": 20000,
+    }
+    result = {
+        "limit": 5,
+        "cache": "off",
+        "scenarios": [
+            {**base, "scenario": "main_timeout", "desc": "主模型超时", "bad": 0},
+            {**base, "scenario": "chat_all_down", "desc": "主备都不可用", "bad": 2},
+        ],
+    }
+    text = drill.markdown_report(
+        result, label="演练-v1", cost=Decimal("0.0123"), duration_ms=20000
+    )
+
+    assert "降级演练 · 演练-v1" in text
+    assert "| main_timeout | 主模型超时 | 3/5 |" in text
+    assert "缓存：关闭" in text
+    assert "1/2 通过，失败场景：chat_all_down" in text
+

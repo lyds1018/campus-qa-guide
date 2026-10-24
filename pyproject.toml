@@ -38,6 +38,8 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.ruff.lint.per-file-ignores]
 # 迁移文件由 Django 生成，不做行宽约束
 "**/migrations/*.py" = ["E501"]
+# 语料脚本里的正文是成段中文，换行会改变生成内容
+"scripts/gen_corpus.py" = ["E501"]
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.dev"
