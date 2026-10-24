@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "apps.orchestrator",
     "apps.access",
     "apps.ops",
+    "apps.eval",
 ]
 
 MIDDLEWARE = [
@@ -221,6 +222,10 @@ ACCESS_AUDIT_ENABLED = _gw("ACCESS_AUDIT_ENABLED", "true").lower() == "true"
 # 知识运营（P6）：上传先落到本地暂存区，再由 P1 的 worker 解析入库
 OPS_UPLOAD_DIR = _gw("OPS_UPLOAD_DIR", str(Path(BASE_DIR) / "var" / "uploads"))
 OPS_UPLOAD_MAX_MB = _qa_int("OPS_UPLOAD_MAX_MB", 20)
+
+
+# 评测与反馈（P7）
+EVAL_REPORT_DIR = _gw("EVAL_REPORT_DIR", str(Path(BASE_DIR) / "docs" / "04-评测" / "reports"))
 
 LOGGING = {
     "version": 1,

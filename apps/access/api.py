@@ -12,6 +12,7 @@ from datetime import datetime
 
 from django.http import HttpResponse, StreamingHttpResponse
 from ninja import Router, Schema
+from ninja.errors import HttpError
 
 from apps.access import limit as rate
 from apps.orchestrator import events
@@ -124,6 +125,44 @@ def history(request, conversation_id: str):
         }
         for m in Message.objects.filter(conversation=conv)
     ]
+
+
+class FeedbackIn(Schema):
+    question: str
+    rating: str                       # up / down
+    answer_excerpt: str = ""
+    reason: str = ""                  # wrong_fact / incomplete / off_topic / outdated / other
+    expect: str = "unsure"            # answer / refuse / unsure
+    note: str = ""
+    conversation_id: str | None = None
+    trace_id: str = ""
+
+
+@router.post("/feedback")
+def feedback(request, payload: FeedbackIn):
+    """答案下方"有用 / 没用"。写库失败不影响用户，但必须让用户看到失败。"""
+    from apps.eval.models import Feedback
+
+    if payload.rating not in Feedback.Rating.values:
+        raise HttpError(400, "rating 只能是 up / down")
+    if payload.reason and payload.reason not in Feedback.Reason.values:
+        raise HttpError(400, "未知的反馈原因")
+    if payload.expect not in Feedback.Expect.values:
+        raise HttpError(400, "expect 只能是 answer / refuse / unsure")
+
+    who = request.identity
+    row = Feedback.objects.create(
+        user_key=who.user_key,
+        conversation_id=payload.conversation_id or "",
+        trace_id=payload.trace_id or getattr(request, "trace_id", ""),
+        question=(payload.question or "")[:200],
+        answer_excerpt=(payload.answer_excerpt or "")[:500],
+        rating=payload.rating,
+        reason=payload.reason,
+        expect=payload.expect,
+        note=(payload.note or "")[:200],
+    )
+    return {"id": row.pk, "ok": True}
 
 
 @router.post("/export")

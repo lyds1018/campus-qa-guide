@@ -10,4 +10,5 @@ api.add_router("/qa", "apps.qa.api.router")
 api.add_router("/orc", "apps.orchestrator.api.router")
 api.add_router("/chat", "apps.access.api.router")
 api.add_router("/ops", "apps.ops.api.router")
+api.add_router("/ops", "apps.eval.api.router")
 

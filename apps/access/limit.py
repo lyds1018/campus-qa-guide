@@ -21,9 +21,10 @@ WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 def bucket_of(method: str, path: str) -> str:
+    # 问答最贵，先判；其余写操作（含学生端反馈、运营接口）统一进 write 桶
     if "/chat/stream" in path or "/chat/turn" in path:
         return CHAT
-    if path.startswith("/api/ops") and method.upper() in WRITE_METHODS:
+    if method.upper() in WRITE_METHODS:
         return WRITE
     return READ
 
