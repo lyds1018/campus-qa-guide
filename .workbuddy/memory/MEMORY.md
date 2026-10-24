@@ -93,4 +93,6 @@ L1 用户接入（Vue 3 + Element Plus、Django Admin）/ L2 接口服务（Ngin
 - **演练必须关 `GW_CACHE_ENABLED`**，否则命中 L1 缓存、故障不触发；失败口径 = 该拒答却作答 或 没答也没兜底，优雅降级不算错。
 - 指标分母为 0 不判；报告 markdown 落 `EVAL_REPORT_DIR`（docs 被忽略）；延迟必须标冷/热（冷 3.5s vs 热 62ms）。
 - 反馈不是黄金集：`p7_golden` 默认只打印，`--apply` 才追加并按问句去重、标记 reviewed。
-- 实测基线：39 条 hit@3/must/可答/拒答全 100%，引用 94%，冷 P50 3469ms；演练 `main_timeout` 降级 3/3 但 P50 9.5s（重试代价）。
+- 实测基线（定稿 v4 冷 / v5 热）：39 条 hit@3/must/可答/拒答全 100%，引用 94%，冷 P50 3390ms / P95 4140ms / ¥0.2078，热 P50 62ms / ¥0。
+- **演练报告已落盘**：`p7_drill` 复用 `runner.write_report`，产出 `docs/04-评测/reports/*-演练.md`（矩阵 + 逐场景判定 + 口径），`report_path` 写入 `eval_runs`。定稿演练五场景 5/5 通过，`main_timeout` degraded 5/5、P50 13.8s，`chat_all_down` 5/5 给原文出处。
+- **`docs/` 已纳入版本控制**：`.gitignore` 只忽略 `.workbuddy/tmp/` 与 `docs/.obsidian/`；语料生成脚本在 `scripts/gen_corpus.py`（`corpus/` 仍忽略，克隆后先跑它）。
