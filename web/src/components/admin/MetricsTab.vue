@@ -100,7 +100,9 @@ onMounted(load);
           <template #default="{ row }">{{ pct(row.metrics.refuse_ok) }}</template>
         </el-table-column>
         <el-table-column label="P50" width="80">
-          <template #default="{ row }">{{ row.metrics.latency_p50_ms ?? "-" }}ms</template>
+          <template #default="{ row }">
+            {{ row.metrics.latency_p50_ms === undefined ? "—" : `${row.metrics.latency_p50_ms}ms` }}
+          </template>
         </el-table-column>
         <el-table-column label="成本" width="90">
           <template #default="{ row }">¥{{ row.cost.toFixed(4) }}</template>
