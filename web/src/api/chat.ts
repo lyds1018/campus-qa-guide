@@ -92,6 +92,21 @@ function dispatch(frame: string, handlers: StreamHandlers) {
   handler?.(payload);
 }
 
+export interface FeedbackBody {
+  question: string;
+  rating: "up" | "down";
+  answer_excerpt?: string;
+  reason?: string;
+  expect?: "answer" | "refuse" | "unsure";
+  note?: string;
+  conversation_id?: string;
+  trace_id?: string;
+}
+
+export function sendFeedback(body: FeedbackBody): Promise<{ id: number; ok: boolean }> {
+  return post<{ id: number; ok: boolean }>("/chat/feedback", body);
+}
+
 export async function exportChecklist(payload: {
   title: string;
   question: string;

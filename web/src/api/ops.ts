@@ -91,6 +91,48 @@ export interface Dashboard {
   };
 }
 
+export interface FeedbackRow {
+  id: number;
+  question: string;
+  answer_excerpt: string;
+  rating: string;
+  reason: string;
+  expect: string;
+  note: string;
+  user_key: string;
+  trace_id: string;
+  created_at: string;
+}
+
+export interface EvalRunRow {
+  id: number;
+  kind: string;
+  label: string;
+  samples: number;
+  metrics: Record<string, number | undefined>;
+  report_path: string;
+  cost: number;
+  duration_ms: number;
+  finished_at: string;
+}
+
+export interface Metrics {
+  days: number;
+  qa: {
+    turns: number;
+    refused: number;
+    refusal_rate: number;
+    p50_ms: number;
+    p95_ms: number;
+    intents: Record<string, number>;
+    refusal_reasons: Record<string, number>;
+  };
+  feedback: { total: number; down: number; down_rate: number; reasons: Record<string, number> };
+  evals: EvalRunRow[];
+  golden: { samples: number; answer: number; refuse: number; with_doc: number };
+  env: Record<string, string | number>;
+}
+
 export interface UploadResult {
   job_id: number;
   filename: string;
@@ -129,6 +171,12 @@ export const ops = {
   saveTerms: (rows: Partial<TermRow>[]) =>
     post<{ created: number; total: number }>("/ops/terms", rows),
   deleteTerm: (id: number) => del<{ deleted: number }>(`/ops/terms/${id}`),
+
+  metrics: (days = 7) => get<Metrics>(`/ops/metrics?days=${days}`),
+  evals: (kind = "", limit = 20) =>
+    get<EvalRunRow[]>(`/ops/evals?limit=${limit}${kind ? `&kind=${kind}` : ""}`),
+  feedbackList: (rating = "", limit = 50) =>
+    get<FeedbackRow[]>(`/ops/feedback?limit=${limit}${rating ? `&rating=${rating}` : ""}`),
 
   models: () => get<ModelRow[]>("/ops/models"),
   saveModel: (slot: string, body: Partial<ModelRow>) =>

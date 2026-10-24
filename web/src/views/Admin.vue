@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
 
 import { me } from "../api/chat";
 import type { Me } from "../api/types";
 import CatalogTab from "../components/admin/CatalogTab.vue";
+import MetricsTab from "../components/admin/MetricsTab.vue";
 import MonitorTab from "../components/admin/MonitorTab.vue";
 import ReviewTab from "../components/admin/ReviewTab.vue";
 import UploadTab from "../components/admin/UploadTab.vue";
 
-const tab = ref("upload");
+const route = useRoute();
+// ?tab=metrics 这类深链便于把看板直接发给别人
+const tab = ref(typeof route.query.tab === "string" ? route.query.tab : "upload");
 const identity = ref<Me | null>(null);
 const error = ref("");
 
@@ -46,6 +50,7 @@ onMounted(async () => {
       <el-tab-pane label="审核与版本" name="review"><ReviewTab /></el-tab-pane>
       <el-tab-pane label="事项与词典" name="catalog"><CatalogTab /></el-tab-pane>
       <el-tab-pane label="看板与模型" name="monitor"><MonitorTab /></el-tab-pane>
+      <el-tab-pane label="评测与反馈" name="metrics"><MetricsTab /></el-tab-pane>
     </el-tabs>
   </div>
 </template>

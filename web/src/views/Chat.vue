@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { ElMessage } from "element-plus";
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { useRoute } from "vue-router";
 
-import { exportChecklist, history, saveBlob, sessions, streamChat } from "../api/chat";
+import {
+  exportChecklist,
+  history,
+  saveBlob,
+  sendFeedback,
+  sessions,
+  streamChat,
+  type FeedbackBody,
+} from "../api/chat";
 import type { ChecklistItem, EvidenceItem, SessionBrief, TurnResult } from "../api/types";
 
 interface Bubble {
@@ -25,6 +33,22 @@ const list = ref<SessionBrief[]>([]);
 const tab = ref("evidence");
 const checked = ref<Record<string, boolean>>({});
 const scroller = ref<HTMLElement>();
+
+const fbDialog = ref(false);
+const fbIndex = ref(-1);
+const fbSent = ref<Record<number, string>>({});
+const fbForm = reactive<{ reason: string; expect: "answer" | "refuse" | "unsure"; note: string }>({
+  reason: "incomplete",
+  expect: "answer",
+  note: "",
+});
+const REASONS = [
+  { value: "wrong_fact", label: "口径/数字错" },
+  { value: "incomplete", label: "答不全" },
+  { value: "off_topic", label: "答非所问" },
+  { value: "outdated", label: "信息过期" },
+  { value: "other", label: "其他" },
+];
 
 const lastAnswer = computed(() => {
   for (let i = messages.value.length - 1; i >= 0; i -= 1) {
@@ -194,6 +218,56 @@ async function doExport() {
   }
 }
 
+function fbBase(bubble: Bubble): FeedbackBody | null {
+  if (!bubble.result) return null;
+  return {
+    question: bubble.result.question,
+    rating: "up",
+    answer_excerpt: bubble.text.slice(0, 200),
+    conversation_id: conversationId.value ?? undefined,
+    trace_id: bubble.result.trace_id,
+  };
+}
+
+async function quickFeedback(index: number, bubble: Bubble) {
+  const base = fbBase(bubble);
+  if (!base) return;
+  try {
+    await sendFeedback(base);
+    fbSent.value = { ...fbSent.value, [index]: "已记为有用" };
+  } catch (e) {
+    ElMessage.error((e as { detail?: string }).detail ?? "反馈失败");
+  }
+}
+
+function openDown(index: number, bubble: Bubble) {
+  if (!fbBase(bubble)) return;
+  fbIndex.value = index;
+  fbForm.reason = "incomplete";
+  fbForm.expect = bubble.result?.answerable ? "answer" : "unsure";
+  fbForm.note = "";
+  fbDialog.value = true;
+}
+
+async function submitDown() {
+  const bubble = messages.value[fbIndex.value];
+  const base = bubble ? fbBase(bubble) : null;
+  if (!base) return;
+  try {
+    await sendFeedback({
+      ...base,
+      rating: "down",
+      reason: fbForm.reason,
+      expect: fbForm.expect,
+      note: fbForm.note,
+    });
+    fbSent.value = { ...fbSent.value, [fbIndex.value]: "已记录，会进人工复核" };
+    fbDialog.value = false;
+  } catch (e) {
+    ElMessage.error((e as { detail?: string }).detail ?? "反馈失败");
+  }
+}
+
 onMounted(async () => {
   await refreshSessions();
   // 深链：/chat?c=<conversation_id> 直接打开某次会话，便于分享与排查
@@ -243,6 +317,12 @@ onMounted(async () => {
               <el-tag v-if="m.result.degraded" size="small" type="warning">备用模型</el-tag>
               <span class="latency">{{ m.result.latency_ms }}ms</span>
             </div>
+            <div v-if="m.result" class="feedback-row">
+              <span class="fb-label">这条回答</span>
+              <el-button size="small" text @click="quickFeedback(i, m)">有用</el-button>
+              <el-button size="small" text @click="openDown(i, m)">没用</el-button>
+              <span v-if="fbSent[i]" class="fb-done">{{ fbSent[i] }}</span>
+            </div>
             <ul v-if="m.notices.length" class="notices">
               <li v-for="(n, k) in m.notices" :key="k">{{ n }}</li>
             </ul>
@@ -250,6 +330,30 @@ onMounted(async () => {
           </div>
         </div>
       </div>
+
+      <el-dialog v-model="fbDialog" title="这条回答哪里不对？" width="460px">
+        <el-form label-width="72px">
+          <el-form-item label="原因">
+            <el-select v-model="fbForm.reason" style="width: 220px">
+              <el-option v-for="r in REASONS" :key="r.value" :label="r.label" :value="r.value" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="应该">
+            <el-radio-group v-model="fbForm.expect">
+              <el-radio value="answer">应该能答</el-radio>
+              <el-radio value="refuse">应该拒答</el-radio>
+              <el-radio value="unsure">说不清</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="补充">
+            <el-input v-model="fbForm.note" type="textarea" :rows="2" maxlength="200" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="fbDialog = false">取消</el-button>
+          <el-button type="primary" @click="submitDown">提交</el-button>
+        </template>
+      </el-dialog>
 
       <div class="composer">
         <el-input
@@ -436,6 +540,23 @@ onMounted(async () => {
   margin-top: 10px;
   font-size: 12px;
   color: #909399;
+}
+
+.feedback-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.fb-label {
+  margin-right: 2px;
+}
+
+.fb-done {
+  color: #67c23a;
 }
 
 .notices {
