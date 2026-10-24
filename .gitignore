@@ -31,9 +31,10 @@ web/.vite/
 .vscode/
 *.swp
 .DS_Store
+docs/.obsidian/
 
-docs/
-.workbuddy/
+# 工作目录：项目记忆入库，临时产物（截图、jar、调试脚本）不入库
+.workbuddy/tmp/
 
 # 上传暂存区（原件由 worker 解析后进 MinIO）
 var/

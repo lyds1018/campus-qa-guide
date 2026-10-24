@@ -1,0 +1,38 @@
+@startuml 问答链路的层次穿越
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei"
+skinparam ArrowColor #2F6FEB
+autonumber
+
+actor "学生" as U
+participant "L1 学生端\nVue 3" as L1
+participant "L2 接口服务\nDjango ASGI" as L2
+participant "L3 编排调度" as L3
+participant "L4 智能能力\n理解 / 检索 / 生成 / 校验" as L4
+database "L5 知识资产\nPG + pgvector" as L5
+participant "L6 模型网关" as L6
+participant "外部模型 API" as EXT
+
+U -> L1 : 输入问题
+L1 -> L2 : POST /api/chat（SSE）
+L2 -> L2 : 鉴权 · 限流 · 建 trace
+L2 -> L3 : 转编排（身份 + 问题 + 预算）
+L3 -> L4 : 意图识别与查询改写
+L4 -> L6 : 轻量模型调用
+L6 -> EXT : 请求
+EXT --> L6 : 结构化结果
+L6 --> L4 : 意图与检索式
+L3 -> L4 : 检索（带过滤与 Top-K）
+L4 -> L5 : 向量 + 全文混合召回（只读）
+L5 --> L4 : 证据块（含来源与条款号）
+L3 -> L4 : 组装证据并生成
+L4 -> L6 : 提示 + 证据 + 预算
+L6 -> EXT : 流式请求
+EXT --> L6 : token 流
+L6 --> L4 : 增量文本
+L4 -> L4 : 引用核对 · 可答性判定
+L4 --> L3 : 答案 + 引用 + 清单 + 告警
+L3 --> L2 : 装配统一响应
+L2 --> L1 : SSE 事件流（分事件下发）
+L1 --> U : 双栏渲染（答案 / 原文对照）
+@enduml

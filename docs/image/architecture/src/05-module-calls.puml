@@ -1,0 +1,60 @@
+@startuml 模块调用关系
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei"
+skinparam componentStyle rectangle
+skinparam nodesep 18
+skinparam ranksep 30
+skinparam ArrowColor #2F6FEB
+skinparam packageBorderColor #94A3B8
+
+package "L1 用户接入" as L1 {
+  [M1 学生端 Web] as M1
+  [M2 管理后台] as M2
+}
+package "L2 接口服务" as L2 {
+  [M3 接口网关] as M3
+}
+package "L3 编排调度" as L3 {
+  [M4 会话与编排] as M4
+}
+package "L4 智能能力" as L4 {
+  [M5 语言理解] as M5
+  [M6 检索] as M6
+  [M7 事项与规则] as M7
+  [M8 生成] as M8
+  [M9 校验] as M9
+}
+package "L5 知识资产" as L5 {
+  [M10 知识库] as M10
+  [M11 知识生产] as M11
+}
+package "L6 模型服务" as L6 {
+  [M12 模型网关] as M12
+}
+package "L7 数据与基础设施" as L7 {
+  [M13 数据访问] as M13
+  [M14 异步任务] as M14
+}
+[外部模型 API] as EXT
+
+M1 -[hidden]right- M2
+M13 -[hidden]right- M14
+
+M1 --> M3 : 请求 / SSE
+M2 --> M3 : 表单 / 审核
+M3 --> M4 : 在线请求
+M3 ..> M11 : 知识导入（唯一跨层）
+M4 --> M5
+M4 --> M6
+M4 --> M7
+M4 --> M8
+M4 --> M9
+L4 --> M10 : 只读：词典 / 检索 / 事项
+L4 --> M12 : 按任务调模型（M5–M9）
+M11 --> M10 : 写入
+M10 --> M13
+M12 --> M13 : 缓存 / 计量
+M11 ..> M14 : 提交任务
+M14 ..> M11 : 执行回调
+M12 --> EXT : 唯一出网
+@enduml

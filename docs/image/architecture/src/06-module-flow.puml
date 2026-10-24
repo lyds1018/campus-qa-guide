@@ -1,0 +1,46 @@
+@startuml 问答链路的模块协作
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei"
+skinparam ArrowColor #2F6FEB
+autonumber
+hide footbox
+
+actor "学生" as U
+participant "M1 学生端" as M1
+participant "M3 接口网关" as M3
+participant "M4 会话与编排" as M4
+participant "M5 语言理解" as M5
+participant "M6 检索" as M6
+database "M10 知识库" as M10
+participant "M8 生成" as M8
+participant "M9 校验" as M9
+participant "M12 模型网关" as M12
+participant "外部模型 API" as EXT
+
+U -> M1 : 输入问题
+M1 -> M3 : POST /chat（SSE）
+M3 -> M3 : 鉴权 · 限流 · 建 trace
+M3 -> M4 : 转编排
+M4 -> M5 : 判意图、改写检索式
+M5 -> M12 : 轻量模型调用
+M12 -> EXT : 请求
+EXT --> M12 : 结构化结果
+M12 --> M5 : 意图与检索式
+M5 --> M4 : 意图 / 检索式
+M4 -> M6 : 检索（过滤 + Top-K）
+M6 -> M12 : 嵌入 + 重排
+M6 -> M10 : 向量 + 全文召回
+M10 --> M6 : 证据块
+M6 --> M4 : Top-K 证据
+M4 -> M8 : 组装证据并生成
+M8 -> M12 : 提示 + 证据（流式）
+M12 -> EXT : 流式请求
+EXT --> M12 : token 流
+M12 --> M8 : 增量文本
+M8 --> M4 : 答案 + 引用锚
+M4 -> M9 : 校验引用与可答性
+M9 --> M4 : 通过 / 降级
+M4 --> M3 : 装配统一响应
+M3 --> M1 : SSE 事件流
+M1 -> M1 : 双栏渲染（答案 / 原文）
+@enduml

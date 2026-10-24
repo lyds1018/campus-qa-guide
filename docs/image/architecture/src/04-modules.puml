@@ -1,0 +1,57 @@
+@startuml 模块分层总览
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei"
+skinparam componentStyle rectangle
+skinparam nodesep 18
+skinparam ranksep 24
+skinparam packageBorderColor #94A3B8
+skinparam ArrowColor #4A5568
+
+package "L1 用户接入层" as L1 {
+  [M1 学生端 Web] as M1
+  [M2 管理后台] as M2
+}
+package "L2 接口服务层" as L2 {
+  [M3 接口网关] as M3
+}
+package "L3 编排调度层" as L3 {
+  [M4 会话与编排] as M4
+}
+package "L4 智能能力层" as L4 {
+  [M5 语言理解] as M5
+  [M6 检索] as M6
+  [M7 事项与规则] as M7
+  [M8 生成] as M8
+  [M9 校验] as M9
+}
+package "L5 知识资产层" as L5 {
+  [M10 知识库] as M10
+  [M11 知识生产] as M11
+}
+package "L6 模型服务层" as L6 {
+  [M12 模型网关] as M12
+}
+package "L7 数据与基础设施层" as L7 {
+  [M13 数据访问] as M13
+  [M14 异步任务] as M14
+}
+package "离线支撑（不占层）" as OFF {
+  [M15 评测与反馈] as M15
+}
+
+M1 -[hidden]right- M2
+M5 -[hidden]right- M6
+M6 -[hidden]right- M7
+M7 -[hidden]right- M8
+M8 -[hidden]right- M9
+M10 -[hidden]right- M11
+M13 -[hidden]right- M14
+
+L1 -[hidden]down- L2
+L2 -[hidden]down- L3
+L3 -[hidden]down- L4
+L4 -[hidden]down- L5
+L5 -[hidden]down- L6
+L6 -[hidden]down- L7
+L7 -[hidden]down- OFF
+@enduml

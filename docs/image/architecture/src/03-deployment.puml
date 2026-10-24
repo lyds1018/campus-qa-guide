@@ -1,0 +1,33 @@
+@startuml 部署视图
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei"
+skinparam ArrowColor #2F6FEB
+skinparam nodeBorderColor #64748B
+
+node "用户终端" as BROWSER {
+  artifact "Vue 3 单页应用（L1）" as SPA
+}
+
+node "应用容器" as APP {
+  node "Nginx（L2）" as NGX
+  node "uvicorn worker × N\nDjango ASGI（L2 / L3 / L4 / L6）" as ASGI
+  node "异步任务进程\n（L5 解析建索引 / 离线评测）" as WORKER
+}
+
+node "数据容器" as DATA {
+  database "PostgreSQL 16 + pgvector（L5 / L7）" as PG
+  database "Redis 7（L3 / L7）" as RDS
+  database "MinIO（L5 / L7）" as MIO
+}
+
+cloud "大模型 / Embedding / 重排 API" as EXT
+
+SPA --> NGX : HTTPS
+NGX --> ASGI : 反向代理
+ASGI --> PG
+ASGI --> RDS
+ASGI --> MIO
+WORKER --> PG
+WORKER --> MIO
+ASGI --> EXT : 出网仅此一处（L6）
+@enduml
