@@ -40,38 +40,28 @@ onMounted(load);
 
 <template>
   <div class="tab-body" v-loading="loading">
-    <el-row :gutter="12">
-      <el-col :span="6">
-        <el-card shadow="never">
-          <div class="metric">{{ metrics?.qa.turns ?? 0 }}</div>
-          <div class="metric-label">近 7 天问答 / 拒答 {{ metrics?.qa.refused ?? 0 }}</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="never">
-          <div class="metric">{{ metrics?.qa.refusal_rate ?? 0 }}%</div>
-          <div class="metric-label">拒答率（P50 {{ metrics?.qa.p50_ms ?? 0 }}ms）</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="never">
-          <div class="metric">
-            {{ metrics?.feedback.down ?? 0 }} / {{ metrics?.feedback.total ?? 0 }}
-          </div>
-          <div class="metric-label">差评数 / 反馈总数</div>
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="never">
-          <div class="metric">
-            {{ pct(runs.find((r) => r.kind === "eval")?.metrics.hit_at_3) }}
-          </div>
-          <div class="metric-label">
-            最近一次回归 hit@3（黄金集 {{ metrics?.golden.samples ?? 0 }} 条）
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <div class="metric-grid">
+      <article class="metric-card">
+        <span class="metric-kicker">近 7 天问答</span>
+        <strong>{{ metrics?.qa.turns ?? 0 }}</strong>
+        <p>拒答 {{ metrics?.qa.refused ?? 0 }} 次</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-kicker">拒答率</span>
+        <strong>{{ metrics?.qa.refusal_rate ?? 0 }}<small>%</small></strong>
+        <p>P50 {{ metrics?.qa.p50_ms ?? 0 }}ms</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-kicker">反馈</span>
+        <strong>{{ metrics?.feedback.down ?? 0 }}<small>/ {{ metrics?.feedback.total ?? 0 }}</small></strong>
+        <p>差评数 / 反馈总数</p>
+      </article>
+      <article class="metric-card">
+        <span class="metric-kicker">最近回归 hit@3</span>
+        <strong>{{ pct(runs.find((r) => r.kind === "eval")?.metrics.hit_at_3) }}</strong>
+        <p>黄金集 {{ metrics?.golden.samples ?? 0 }} 条</p>
+      </article>
+    </div>
 
     <el-card shadow="never">
       <template #header>
@@ -109,14 +99,19 @@ onMounted(load);
         </el-table-column>
         <el-table-column prop="finished_at" label="完成时间" min-width="170" />
       </el-table>
-      <div class="hint">
-        回归与演练走命令行（`p7_eval` / `p7_drill`），这里只读历史；报告是 markdown，
-        路径见 `EVAL_REPORT_DIR`。
+      <div class="footnote">
+        回归与演练走命令行（p7_eval / p7_drill），这里只读历史；报告为 markdown，路径见
+        EVAL_REPORT_DIR。
       </div>
     </el-card>
 
     <el-card shadow="never">
-      <template #header>用户反馈（差评优先看）</template>
+      <template #header>
+        <div class="head">
+          <span>学生反馈</span>
+          <span class="table-note">差评优先复核</span>
+        </div>
+      </template>
       <el-table :data="feedback" size="small" empty-text="还没有反馈">
         <el-table-column prop="question" label="问题" min-width="200" show-overflow-tooltip />
         <el-table-column label="评分" width="80">
@@ -138,37 +133,95 @@ onMounted(load);
         <el-table-column prop="trace_id" label="trace" width="120" show-overflow-tooltip />
         <el-table-column prop="created_at" label="时间" min-width="160" />
       </el-table>
-      <div class="hint">
-        差评是候选池、不是黄金集：确认后跑 `p7_golden --apply` 才进回归基线。
+      <div class="footnote">
+        差评是候选池，不是黄金集：确认后执行 p7_golden --apply 才进入回归基线。
       </div>
     </el-card>
   </div>
 </template>
 
 <style scoped>
-.tab-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
 }
-.metric {
-  font-size: 26px;
+
+.metric-card {
+  min-width: 0;
+  padding: 18px 18px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.metric-card:last-child {
+  border-right: 0;
+}
+
+.metric-kicker {
+  display: block;
+  color: var(--ink-muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 30px;
   font-weight: 600;
-  color: #303133;
+  line-height: 1;
 }
-.metric-label {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #909399;
+
+.metric-card strong small {
+  margin-left: 3px;
+  color: var(--ink-muted);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 400;
 }
-.head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+
+.metric-card p {
+  margin: 8px 0 0;
+  color: var(--ink-faint);
+  font-size: 9.5px;
+  line-height: 1.55;
 }
-.hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #909399;
+
+.table-note {
+  color: var(--ink-faint);
+  font-size: 9.5px;
+  font-weight: 400;
+}
+
+.footnote {
+  margin-top: 10px;
+  color: var(--ink-faint);
+  font-size: 9.5px;
+  line-height: 1.65;
+}
+
+@media (max-width: 1080px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-card:nth-child(2) {
+    border-right: 0;
+  }
+
+  .metric-card:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 620px) {
+  .table-note {
+    display: none;
+  }
 }
 </style>

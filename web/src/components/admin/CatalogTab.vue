@@ -15,6 +15,27 @@ const form = reactive<Partial<MatterRow>>({});
 const termDialog = ref(false);
 const termForm = reactive<Partial<TermRow>>({ term: "", canonical: "", term_type: "alias", weight: 1 });
 
+const AUDIENCE_LABEL: Record<string, string> = {
+  undergrad: "本科生",
+  grad: "研究生",
+  staff: "教职工",
+  alumni: "校友",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  published: "已发布",
+  draft: "草稿",
+  archived: "已归档",
+};
+
+function audienceLabel(value: string) {
+  return AUDIENCE_LABEL[value] ?? value ?? "不限";
+}
+
+function statusLabel(value: string) {
+  return STATUS_LABEL[value] ?? value;
+}
+
 async function loadMatters() {
   try {
     matters.value = await ops.matters(query.value);
@@ -103,8 +124,16 @@ onMounted(async () => {
         <el-table-column prop="code" label="编号" width="120" />
         <el-table-column prop="name" label="名称" min-width="160" />
         <el-table-column prop="dept" label="部门" width="130" />
-        <el-table-column prop="audience" label="面向" width="90" />
-        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column label="面向" width="90">
+          <template #default="{ row }">{{ audienceLabel(row.audience) }}</template>
+        </el-table-column>
+        <el-table-column label="状态" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.status === 'published' ? 'success' : 'info'">
+              {{ statusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="steps" label="步骤" width="70" />
         <el-table-column label="操作" width="80">
           <template #default="{ row }">

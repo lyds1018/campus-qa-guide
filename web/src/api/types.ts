@@ -38,6 +38,7 @@ export interface Segment {
   answerable: boolean;
   text: string;
   failed: boolean;
+  refusal_reason?: string;
   citations: Citation[];
   evidence: EvidenceItem[];
   checklist: ChecklistItem[];
@@ -52,6 +53,7 @@ export interface TurnResult {
   mode: string;
   intent: string;
   answerable: boolean;
+  refusal_reason?: string;
   degraded: boolean;
   failed_segments: number;
   trace_id: string;

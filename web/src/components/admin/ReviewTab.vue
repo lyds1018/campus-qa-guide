@@ -11,6 +11,27 @@ const loading = ref(false);
 const versions = ref<DocRow[]>([]);
 const versionDialog = ref(false);
 
+const TYPE_LABEL: Record<string, string> = {
+  guide: "办事指南",
+  policy: "规章制度",
+  faq: "常见问题",
+  notice: "通知公告",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  published: "已发布",
+  draft: "草稿",
+  archived: "已归档",
+};
+
+function typeLabel(value: string) {
+  return TYPE_LABEL[value] ?? value;
+}
+
+function statusLabel(value: string) {
+  return STATUS_LABEL[value] ?? value;
+}
+
 async function loadReview() {
   loading.value = true;
   try {
@@ -87,7 +108,9 @@ onMounted(loadReview);
       </template>
       <el-table :data="rows" v-loading="loading" size="small" empty-text="没有待审核的草稿">
         <el-table-column prop="title" label="标题" min-width="180" />
-        <el-table-column prop="doc_type" label="类型" width="90" />
+        <el-table-column prop="doc_type" label="类型" width="90">
+          <template #default="{ row }">{{ typeLabel(row.doc_type) }}</template>
+        </el-table-column>
         <el-table-column prop="dept" label="部门" width="110" />
         <el-table-column label="版本" width="70">
           <template #default="{ row }">v{{ row.version }}</template>
@@ -135,7 +158,13 @@ onMounted(loadReview);
       </template>
       <el-table :data="docs" size="small" empty-text="没有文档">
         <el-table-column prop="title" label="标题" min-width="200" />
-        <el-table-column prop="status" label="状态" width="90" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.status === 'published' ? 'success' : 'info'">
+              {{ statusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="版本" width="70">
           <template #default="{ row }">v{{ row.version }}</template>
         </el-table-column>
@@ -160,7 +189,13 @@ onMounted(loadReview);
       <el-table :data="versions" size="small">
         <el-table-column prop="id" label="#" width="60" />
         <el-table-column prop="title" label="标题" min-width="180" />
-        <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.status === 'published' ? 'success' : 'info'">
+              {{ statusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="版本" width="70">
           <template #default="{ row }">v{{ row.version }}</template>
         </el-table-column>

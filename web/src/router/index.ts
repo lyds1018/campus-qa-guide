@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-import Admin from "../views/Admin.vue";
-import Chat from "../views/Chat.vue";
-import Home from "../views/Home.vue";
+// 按页面拆包：管理后台与状态页不该拖慢首屏问答
+const Chat = () => import("../views/Chat.vue");
+const Admin = () => import("../views/Admin.vue");
+const Home = () => import("../views/Home.vue");
 
 export default createRouter({
   history: createWebHistory(),
