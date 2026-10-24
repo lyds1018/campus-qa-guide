@@ -14,7 +14,7 @@ from ninja import Router, Schema
 
 from apps.eval import runner
 from apps.eval.models import EvalRun, Feedback
-from apps.orchestrator.models import Message
+from apps.orchestrator import stats
 
 router = Router(tags=["ops"])
 
@@ -100,19 +100,7 @@ def evals(request, kind: str = "", limit: int = 20):
 def metrics(request, days: int = 7):
     days = max(1, min(days, 90))
     since = timezone.now() - timedelta(days=days)
-    answers = Message.objects.filter(role=Message.Role.ASSISTANT, created_at__gte=since)
-
-    total = answers.count()
-    refused = answers.filter(answerable=False).count()
-    latencies = sorted(answers.values_list("latency_ms", flat=True))
-    intents = {
-        row["intent"] or "unknown": row["n"]
-        for row in answers.values("intent").annotate(n=Count("id"))
-    }
-    reasons = {
-        row["refusal_reason"] or "(作答)": row["n"]
-        for row in answers.values("refusal_reason").annotate(n=Count("id"))
-    }
+    qa = stats.summarize(since, breakdown=True)
 
     fb = Feedback.objects.filter(created_at__gte=since)
     fb_total = fb.count()
@@ -147,17 +135,7 @@ def metrics(request, days: int = 7):
 
     return MetricsOut(
         days=days,
-        qa={
-            "turns": total,
-            "refused": refused,
-            "refusal_rate": round(refused / total * 100, 1) if total else 0.0,
-            "p50_ms": latencies[len(latencies) // 2] if latencies else 0,
-            "p95_ms": latencies[min(len(latencies) - 1, int(len(latencies) * 0.95))]
-            if latencies
-            else 0,
-            "intents": intents,
-            "refusal_reasons": reasons,
-        },
+        qa=qa,
         feedback={
             "total": fb_total,
             "down": fb_down,

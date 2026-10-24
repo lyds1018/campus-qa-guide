@@ -1,8 +1,4 @@
-"""离线批量评测：黄金集跑批，出四个指标。
-
-它是 P7 批量回归的最小版本：数据格式（JSONL）、指标口径与 P7 一致，
-P7 只往上加样本量与看板，不换字段。
-"""
+"""离线批量评测：复用统一黄金集，保留本命令的兼容指标与输出。"""
 
 from __future__ import annotations
 
@@ -13,19 +9,11 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
+from apps.eval.runner import GOLDEN, load_rows
 from apps.gateway.sync import run
 from apps.qa.pipeline import qa
 
-DEFAULT_SET = Path(__file__).resolve().parents[2] / "fixtures" / "golden.jsonl"
-
-
-def load_rows(path: Path) -> list[dict]:
-    rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("//"):
-            rows.append(json.loads(line))
-    return rows
+DEFAULT_SET = GOLDEN
 
 
 class Command(BaseCommand):

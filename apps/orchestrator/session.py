@@ -2,7 +2,7 @@
 
 | 存 | 不存 |
 | --- | --- |
-| 历史窗口（问句 + 答案首段）、槽位、上一轮事项与意图、待补信息 |
+| 历史窗口（问句 + 答案首段）、槽位、上一轮事项与意图 |
 | 完整答案 JSON（在 `messages.payload` 里）、证据正文（体积大且可重查） |
 
 Redis 丢了不致命：`load_or_create` 会从 PG 的最近消息重建上下文窗口，只是丢掉
@@ -35,7 +35,6 @@ class SessionState:
     history: list[dict] = field(default_factory=list)  # [{"q": ..., "a": ...}]
     last_matter: str = ""
     last_intent: str = ""
-    pending: str = ""
 
     def history_pairs(self) -> list[tuple[str, str]]:
         """给 M5 做指代还原用：问句 + 答案，按时间正序。"""

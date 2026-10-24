@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
@@ -15,15 +15,17 @@ from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
-from ninja import File, Form, Router, Schema
+from ninja import File, Form, Router
 from ninja.errors import HttpError
 from ninja.files import UploadedFile
 
 from apps.gateway import overrides
 from apps.gateway.base import GatewayError
+from apps.gateway.cache import FINGERPRINT_KEY
 from apps.gateway.gateway import gateway
 from apps.gateway.models import ModelSetting
 from apps.knowledge import queue
+from apps.knowledge.ingest import checksum_of
 from apps.knowledge.models import (
     Chunk,
     DocType,
@@ -38,7 +40,21 @@ from apps.knowledge.models import (
 from apps.knowledge.parsing import SUPPORTED_SUFFIXES
 from apps.knowledge.repositories import ReadRepository, WriteRepository
 from apps.ops import conflict
-from apps.orchestrator.models import Message
+from apps.ops.schemas import (
+    ConflictOut,
+    DocOut,
+    JobOut,
+    MatterIn,
+    MatterOut,
+    ModelIn,
+    ModelOut,
+    ReviewOut,
+    TermIn,
+    TermOut,
+    UploadOut,
+)
+from apps.orchestrator import stats
+from apps.qa.lexicon import TERMS_KEY
 
 router = Router(tags=["ops"])
 # 放在模块级：函数默认值里直接调 File() 会被 lint 判为"调用在默认值里"（B008）
@@ -48,27 +64,6 @@ writer = WriteRepository()
 
 
 # --------------------------------------------------------------- 上传与任务
-class UploadOut(Schema):
-    job_id: int
-    filename: str
-    size: int
-    doc_type: str
-    checksum: str
-
-
-class JobOut(Schema):
-    id: int
-    source_path: str
-    doc_type: str
-    status: str
-    stage: str
-    message: str
-    document_id: int | None = None
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    created_at: datetime
-
-
 @router.post("/uploads", response=UploadOut)
 def upload(
     request,
@@ -88,7 +83,7 @@ def upload(
     if len(data) > limit:
         raise HttpError(413, f"文件超过 {settings.OPS_UPLOAD_MAX_MB}MB")
 
-    checksum = hashlib.sha256(data).hexdigest()
+    checksum = checksum_of(data)
     existed = writer.find_by_checksum(checksum)
     if existed is not None:
         raise HttpError(409, f"该文件已存在：doc#{existed.pk}《{existed.title}》")
@@ -155,26 +150,6 @@ def retry_job(request, job_id: int):
 
 
 # --------------------------------------------------------------- 审核与版本
-class ConflictOut(Schema):
-    field: str
-    draft: str
-    published: str
-    published_doc: str
-    published_doc_id: int
-
-
-class ReviewOut(Schema):
-    id: int
-    title: str
-    doc_type: str
-    dept: str
-    version: int
-    chunks: int
-    embedded: int
-    created_at: datetime
-    conflicts: list[ConflictOut]
-
-
 @router.get("/review", response=list[ReviewOut])
 def review(request, limit: int = 30):
     docs = Document.objects.filter(status=PublishStatus.DRAFT).order_by("-created_at")[
@@ -208,8 +183,8 @@ def _publish(doc: Document) -> None:
 
 def _invalidate_kb() -> None:
     # 知识换版必须让答案缓存与词典缓存立刻失效，否则 60s 内还在答旧口径
-    cache.delete("gw:kb:fingerprint")
-    cache.delete("qa:terms")
+    cache.delete(FINGERPRINT_KEY)
+    cache.delete(TERMS_KEY)
 
 
 @router.post("/review/{doc_id}/publish")
@@ -231,18 +206,6 @@ def archive(request, doc_id: int):
     writer.archive(doc)
     _invalidate_kb()
     return {"id": doc.pk, "status": PublishStatus.ARCHIVED}
-
-
-class DocOut(Schema):
-    id: int
-    title: str
-    doc_type: str
-    status: str
-    version: int
-    chunks: int
-    embedded: int
-    published_at: datetime | None = None
-    created_at: datetime
 
 
 @router.get("/documents", response=list[DocOut])
@@ -327,16 +290,6 @@ async def embed_document(request, doc_id: int):
 @router.get("/dashboard")
 def dashboard(request):
     day_ago = timezone.now() - timedelta(days=1)
-    answers = Message.objects.filter(
-        role=Message.Role.ASSISTANT, created_at__gte=day_ago
-    )
-    total = answers.count()
-    refused = answers.filter(answerable=False).count()
-    latencies = list(answers.values_list("latency_ms", flat=True))
-    latencies.sort()
-
-    def pct(value: float) -> float:
-        return round(value * 100, 1)
 
     return {
         "documents": {
@@ -358,44 +311,11 @@ def dashboard(request):
             for row in IngestJob.objects.values("status").annotate(n=Count("id"))
         },
         "queue_depth": queue.depth(),
-        "qa_24h": {
-            "turns": total,
-            "refused": refused,
-            "refusal_rate": pct(refused / total) if total else 0.0,
-            "p50_ms": latencies[len(latencies) // 2] if latencies else 0,
-            "p95_ms": latencies[min(len(latencies) - 1, int(len(latencies) * 0.95))]
-            if latencies
-            else 0,
-        },
+        "qa_24h": stats.summarize(day_ago),
     }
 
 
 # --------------------------------------------------------------- 事项
-class MatterIn(Schema):
-    code: str | None = None
-    name: str
-    dept: str = ""
-    category: str = ""
-    audience: str = ""
-    summary: str = ""
-    location: str = ""
-    contact: str = ""
-    status: str = PublishStatus.PUBLISHED
-
-
-class MatterOut(Schema):
-    code: str
-    name: str
-    dept: str
-    category: str
-    audience: str
-    location: str
-    contact: str
-    summary: str
-    status: str
-    steps: int
-
-
 @router.get("/matters", response=list[MatterOut])
 def matters(request, query: str = ""):
     qs = Matter.objects.all()
@@ -448,21 +368,6 @@ def upsert_matter(request, payload: MatterIn):
 
 
 # --------------------------------------------------------------- 词典
-class TermIn(Schema):
-    term: str
-    canonical: str
-    term_type: str = "alias"
-    weight: int = 1
-
-
-class TermOut(Schema):
-    id: int
-    term: str
-    canonical: str
-    term_type: str
-    weight: int
-
-
 @router.get("/terms", response=list[TermOut])
 def terms(request, query: str = "", limit: int = 100):
     qs = Term.objects.all()
@@ -477,35 +382,18 @@ def terms(request, query: str = "", limit: int = 100):
 @router.post("/terms")
 def upsert_terms(request, rows: list[TermIn]):
     created = writer.upsert_terms([row.model_dump() for row in rows])
-    cache.delete("qa:terms")           # 词典缓存必须立刻失效，否则改写还用旧词表
+    cache.delete(TERMS_KEY)           # 词典缓存必须立刻失效，否则改写还用旧词表
     return {"created": created, "total": len(rows)}
 
 
 @router.delete("/terms/{term_id}")
 def delete_term(request, term_id: int):
     deleted, _ = Term.objects.filter(pk=term_id).delete()
-    cache.delete("qa:terms")
+    cache.delete(TERMS_KEY)
     return {"deleted": deleted}
 
 
 # --------------------------------------------------------------- 模型槽位
-class ModelOut(Schema):
-    slot: str
-    base_url: str
-    model: str
-    has_key: bool
-    overridden: bool
-    enabled: bool
-    note: str
-
-
-class ModelIn(Schema):
-    base_url: str = ""
-    model: str = ""
-    enabled: bool = True
-    note: str = ""
-
-
 def _slot_cfg() -> dict[str, tuple[str, str, bool]]:
     s = settings
     return {

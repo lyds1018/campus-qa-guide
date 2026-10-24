@@ -47,6 +47,11 @@ class TurnResult:
     notices: list[str] = field(default_factory=list)
     meta: dict = field(default_factory=dict)
 
+    @property
+    def refusal_reason(self) -> str:
+        """首段拒答原因，供前端用统一文案说明"为什么没答"。"""
+        return self.segments[0].refusal_reason if self.segments else ""
+
     def as_dict(self) -> dict:
         return {
             "conversation_id": self.conversation_id,
@@ -56,6 +61,7 @@ class TurnResult:
             "mode": self.mode,
             "intent": self.intent,
             "answerable": self.answerable,
+            "refusal_reason": self.refusal_reason,
             "degraded": self.degraded,
             "failed_segments": self.failed_segments,
             "trace_id": self.trace_id,
@@ -71,6 +77,7 @@ class TurnResult:
                     "answerable": s.answerable,
                     "text": s.text,
                     "failed": s.failed,
+                    "refusal_reason": s.refusal_reason,
                     "citations": s.citations,
                     "evidence": s.evidence,
                     "checklist": s.checklist,

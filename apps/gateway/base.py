@@ -154,7 +154,10 @@ class ChatAdapter(Protocol):
     async def chat(self, messages: list[ChatMessage], params: ChatParams) -> ChatResult: ...
 
     def stream(
-        self, messages: list[ChatMessage], params: ChatParams
+        self,
+        messages: list[ChatMessage],
+        params: ChatParams,
+        usage: dict | None = None,
     ) -> AsyncIterator[ChatDelta]: ...
 
 

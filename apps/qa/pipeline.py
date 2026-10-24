@@ -10,6 +10,7 @@ import asyncio
 import time
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 
 from django.conf import settings
 
@@ -22,10 +23,14 @@ from apps.gateway.base import (
 from apps.qa import generate, matters, prompts, retrieve, understand, verify
 from apps.qa.types import (
     Answer,
+    ChecklistItem,
     Citation,
+    Conflict,
     Evidence,
+    MatterMatch,
     QAEvent,
     RefusalReason,
+    RetrievalResult,
     Slots,
     Understanding,
 )
@@ -44,6 +49,24 @@ def _sources_text(evidence: list[Evidence], limit: int = 3) -> str:
         head = e.content.strip().replace("\n", " ")[:80]
         lines.append(f"{e.ref}. {e.label}\n   {head}…")
     return "\n".join(lines) if lines else "（无）"
+
+
+@dataclass
+class _GenerationContext:
+    """通过门槛后、调用模型前需要准备的全部上下文。
+
+    同步与流式只在生成策略上不同（是否修复重写），之前的门槛、事项、槽位、
+    冲突和提示构造必须完全同口径，集中在这里避免两条路径慢慢漂移。
+    """
+
+    retrieval: RetrievalResult
+    refusal: RefusalReason | None = None
+    matter: MatterMatch | None = None
+    slots: Slots = field(default_factory=Slots)
+    conflicts: list[Conflict] = field(default_factory=list)
+    notices: list[str] = field(default_factory=list)
+    checklist: list[ChecklistItem] = field(default_factory=list)
+    messages: list = field(default_factory=list)
 
 
 def _citations(text: str, evidence: list[Evidence]) -> list[Citation]:
@@ -104,28 +127,22 @@ class QAService:
                 text, RefusalReason.OUT_OF_SCOPE, prompts.OUT_OF_SCOPE, trace_id, started, u=u
             )
 
-        result = await retrieve.retrieve(u.rewritten, doc_types=doc_types)
-        reason = verify.gate(result)
-        if reason is not None:
+        prep = await self._prepare(text, u, doc_types)
+        if prep.refusal is not None:
             return self._plain(
                 text,
-                reason,
-                self._refusal_text(reason, text, result),
+                prep.refusal,
+                self._refusal_text(prep.refusal, text, prep.retrieval),
                 trace_id,
                 started,
                 u=u,
-                evidence=result.evidence[:2],
-                meta={"recall": result.notes},
+                evidence=prep.retrieval.evidence[:2],
+                meta={"recall": prep.retrieval.notes},
             )
 
-        matter = await asyncio.to_thread(matters.match_matter, u.rewritten, result.evidence)
-        slots = matters.extract_slots(text, u)
-        conflicts = verify.detect_conflicts(result.evidence)
-        notices = matters.evaluate_rules(matter, slots, result.evidence)
-        checklist = matters.build_checklist(matter, result.evidence)
-        messages = generate.build_messages(
-            text, u, result.evidence, matter=matter, slots=slots, conflicts=conflicts
-        )
+        result, matter, slots = prep.retrieval, prep.matter, prep.slots
+        conflicts, notices, checklist = prep.conflicts, prep.notices, prep.checklist
+        messages = prep.messages
 
         try:
             gen = await generate.generate(messages, trace_id=trace_id)
@@ -245,25 +262,19 @@ class QAService:
             return
 
         yield QAEvent("stage", stage="retrieve")
-        result = await retrieve.retrieve(u.rewritten, doc_types=doc_types)
-        reason = verify.gate(result)
-        if reason is not None:
-            refusal = self._refusal_text(reason, text, result)
+        prep = await self._prepare(text, u, doc_types)
+        if prep.refusal is not None:
+            refusal = self._refusal_text(prep.refusal, text, prep.retrieval)
             yield QAEvent("delta", text=refusal)
             yield QAEvent("final", answer=self._plain(
-                text, reason, refusal, trace_id, started, u=u,
-                evidence=result.evidence[:2], meta={"recall": result.notes},
+                text, prep.refusal, refusal, trace_id, started, u=u,
+                evidence=prep.retrieval.evidence[:2], meta={"recall": prep.retrieval.notes},
             ))
             return
 
-        matter = await asyncio.to_thread(matters.match_matter, u.rewritten, result.evidence)
-        slots = matters.extract_slots(text, u)
-        conflicts = verify.detect_conflicts(result.evidence)
-        notices = matters.evaluate_rules(matter, slots, result.evidence)
-        checklist = matters.build_checklist(matter, result.evidence)
-        messages = generate.build_messages(
-            text, u, result.evidence, matter=matter, slots=slots, conflicts=conflicts
-        )
+        result, matter, slots = prep.retrieval, prep.matter, prep.slots
+        conflicts, notices, checklist = prep.conflicts, prep.notices, prep.checklist
+        messages = prep.messages
 
         parts: list[str] = []
         interrupted: str | None = None
@@ -313,6 +324,40 @@ class QAService:
         ))
 
     # ------------------------------------------------------------ 内部
+
+    async def _prepare(
+        self,
+        text: str,
+        understanding: Understanding,
+        doc_types: list[str] | None,
+    ) -> _GenerationContext:
+        """检索、门槛、事项与提示构造。生成策略由调用方决定，这里不碰模型。"""
+        result = await retrieve.retrieve(understanding.rewritten, doc_types=doc_types)
+        reason = verify.gate(result)
+        if reason is not None:
+            return _GenerationContext(retrieval=result, refusal=reason)
+
+        matter = await asyncio.to_thread(
+            matters.match_matter, understanding.rewritten, result.evidence
+        )
+        slots = matters.extract_slots(text, understanding)
+        conflicts = verify.detect_conflicts(result.evidence)
+        return _GenerationContext(
+            retrieval=result,
+            matter=matter,
+            slots=slots,
+            conflicts=conflicts,
+            notices=matters.evaluate_rules(matter, slots, result.evidence),
+            checklist=matters.build_checklist(matter, result.evidence),
+            messages=generate.build_messages(
+                text,
+                understanding,
+                result.evidence,
+                matter=matter,
+                slots=slots,
+                conflicts=conflicts,
+            ),
+        )
 
     def _refusal_text(self, reason: RefusalReason, question: str, result) -> str:
         if reason is RefusalReason.NO_EVIDENCE:

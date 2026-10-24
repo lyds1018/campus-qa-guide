@@ -50,16 +50,7 @@ class Orchestrator:
         raw = (question or "").strip()
 
         if not raw:
-            ctx = TurnContext(question=raw, audience=state.audience, trace_id=trace_id)
-            result = assembler.assemble(
-                conversation_id=state.conversation_id,
-                turn=state.turn,
-                question=raw,
-                answers=[capabilities.empty_answer(ctx)],
-                mode=SINGLE,
-                trace_id=trace_id,
-                latency_ms=_now_ms(started),
-            )
+            result = self._empty_result(state, raw, trace_id, started)
             await asyncio.to_thread(self._persist, state, raw, result)
             return result
 
@@ -70,7 +61,53 @@ class Orchestrator:
         plan = router.plan_for(understanding, state)
         answers = await self._execute(plan, understanding, state, doc_types, trace_id)
 
-        result = assembler.assemble(
+        result = self._assemble(
+            state, raw, answers, plan, patched, trace_id, started
+        )
+        await asyncio.to_thread(self._persist, state, raw, result)
+        return result
+
+    def _empty_result(
+        self,
+        state: session.SessionState,
+        raw: str,
+        trace_id: str,
+        started: float,
+    ) -> assembler.TurnResult:
+        """空问题也返回一份完整 TurnResult，落库与前端都按正常轮次处理。"""
+        ctx = TurnContext(question=raw, audience=state.audience, trace_id=trace_id)
+        return assembler.assemble(
+            conversation_id=state.conversation_id,
+            turn=state.turn,
+            question=raw,
+            answers=[capabilities.empty_answer(ctx)],
+            mode=SINGLE,
+            trace_id=trace_id,
+            latency_ms=_now_ms(started),
+        )
+
+    def _assemble(
+        self,
+        state: session.SessionState,
+        raw: str,
+        answers: list,
+        plan: router.Plan,
+        patched: bool,
+        trace_id: str,
+        started: float,
+        *,
+        streamed: bool = False,
+    ) -> assembler.TurnResult:
+        """统一装配元信息，避免同步/流式/fan-out 三处 meta 各写一份。"""
+        meta = {
+            "plan": plan.reason,
+            "enriched": patched,
+            "matter_name": assembler.matter_name_of(answers),
+            "segments": len(plan.segments),
+        }
+        if streamed:
+            meta["stream"] = True
+        return assembler.assemble(
             conversation_id=state.conversation_id,
             turn=state.turn,
             question=raw,
@@ -78,15 +115,8 @@ class Orchestrator:
             mode=plan.mode,
             trace_id=trace_id,
             latency_ms=_now_ms(started),
-            meta={
-                "plan": plan.reason,
-                "enriched": patched,
-                "matter_name": assembler.matter_name_of(answers),
-                "segments": len(plan.segments),
-            },
+            meta=meta,
         )
-        await asyncio.to_thread(self._persist, state, raw, result)
-        return result
 
     async def _execute(
         self,
@@ -144,16 +174,7 @@ class Orchestrator:
 
         try:
             if not raw:
-                ctx = TurnContext(question=raw, audience=state.audience, trace_id=trace_id)
-                result = assembler.assemble(
-                    conversation_id=state.conversation_id,
-                    turn=state.turn,
-                    question=raw,
-                    answers=[capabilities.empty_answer(ctx)],
-                    mode=SINGLE,
-                    trace_id=trace_id,
-                    latency_ms=_now_ms(started),
-                )
+                result = self._empty_result(state, raw, trace_id, started)
                 yield events.sse(events.DELTA, {"text": result.text})
                 yield events.sse(events.ANSWER, result.as_dict())
                 await asyncio.to_thread(self._persist, state, raw, result)
@@ -173,20 +194,8 @@ class Orchestrator:
                     answers = await self._execute(
                         plan, understanding, state, doc_types, trace_id
                     )
-                    result = assembler.assemble(
-                        conversation_id=state.conversation_id,
-                        turn=state.turn,
-                        question=raw,
-                        answers=answers,
-                        mode=plan.mode,
-                        trace_id=trace_id,
-                        latency_ms=_now_ms(started),
-                        meta={
-                            "plan": plan.reason,
-                            "enriched": patched,
-                            "matter_name": assembler.matter_name_of(answers),
-                            "segments": len(plan.segments),
-                        },
+                    result = self._assemble(
+                        state, raw, answers, plan, patched, trace_id, started
                     )
                     yield events.sse(events.DELTA, {"text": result.text})
                     yield events.sse(events.ANSWER, result.as_dict())
@@ -217,21 +226,15 @@ class Orchestrator:
                             final = event.answer
                     if final is None:              # 理论上不会：stream() 一定以 final 收尾
                         final = capabilities.failed_answer(ctx, "no_final")
-                    result = assembler.assemble(
-                        conversation_id=state.conversation_id,
-                        turn=state.turn,
-                        question=raw,
-                        answers=[final],
-                        mode=SINGLE,
-                        trace_id=trace_id,
-                        latency_ms=_now_ms(started),
-                        meta={
-                            "plan": plan.reason,
-                            "enriched": patched,
-                            "matter_name": assembler.matter_name_of([final]),
-                            "segments": 1,
-                            "stream": True,
-                        },
+                    result = self._assemble(
+                        state,
+                        raw,
+                        [final],
+                        plan,
+                        patched,
+                        trace_id,
+                        started,
+                        streamed=True,
                     )
                     yield events.sse(events.ANSWER, result.as_dict())
                     await asyncio.to_thread(self._persist, state, raw, result)
